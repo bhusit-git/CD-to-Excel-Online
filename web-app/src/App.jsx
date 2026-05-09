@@ -2,7 +2,6 @@ import { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Upload, 
-  FileSpreadsheet, 
   AlertCircle, 
   CheckCircle2, 
   Folder,
@@ -160,8 +159,12 @@ function App() {
       <header className="bg-white border-b border-slate-200 sticky top-0 z-10">
         <div className="max-w-5xl mx-auto px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <div className="bg-blue-600 p-2 rounded-lg text-white">
-              <FileSpreadsheet size={20} />
+            <div className="bg-white p-1 rounded-lg border border-slate-200">
+              <img
+                src="/icons/icon-192.png"
+                alt="Lawson Billing Logo"
+                className="w-8 h-8 rounded-md object-cover"
+              />
             </div>
             <h1 className="font-bold text-xl text-slate-900 tracking-tight">ระบบสร้างใบวางบิลลอว์สัน</h1>
           </div>
