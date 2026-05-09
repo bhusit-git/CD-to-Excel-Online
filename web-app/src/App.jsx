@@ -83,6 +83,7 @@ const FolderUploader = ({ label, description, onFilesSelected, selectedFiles, ic
 };
 
 function App() {
+  const logoSrc = `${import.meta.env.BASE_URL}icons/icon-192.png`;
   const [bigSourceFiles, setBigSourceFiles] = useState([]);
   const [smallSourceFiles, setSmallSourceFiles] = useState([]);
   
@@ -161,7 +162,7 @@ function App() {
           <div className="flex items-center gap-2">
             <div className="bg-white p-1 rounded-lg border border-slate-200">
               <img
-                src="/icons/icon-192.png"
+                src={logoSrc}
                 alt="Lawson Billing Logo"
                 className="w-8 h-8 rounded-md object-cover"
               />
