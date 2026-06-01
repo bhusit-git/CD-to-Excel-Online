@@ -134,8 +134,9 @@ function App() {
       const blob = new Blob([workbookBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
+      const timestamp = new Date().toISOString().slice(0, 16).replace(/[-:T]/g, '');
       a.href = url;
-      a.download = `Lawson_Billing_${billingMonth.replace('-', '')}.xlsx`;
+      a.download = `Lawson_Billing_${billingMonth.replace('-', '')}_${timestamp}.xlsx`;
       document.body.appendChild(a);
       a.click();
       
