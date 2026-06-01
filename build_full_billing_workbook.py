@@ -315,7 +315,9 @@ def load_dbf(path: Path) -> list[dict]:
 
 
 def thai_baht_text(amount: float) -> str:
-    integer = int(round(amount))
+    total_satang = int(round((amount or 0) * 100))
+    baht = total_satang // 100
+    satang = total_satang % 100
 
     def read_under_million(num: int) -> str:
         if num == 0:
@@ -343,25 +345,31 @@ def thai_baht_text(amount: float) -> str:
                 parts.append(THAI_DIGITS[digit] + THAI_POSITIONS[pos])
         return "".join(parts)
 
-    if integer == 0:
-        return "ศูนย์บาทถ้วน"
+    def read_number(num: int) -> str:
+        if num == 0:
+            return "ศูนย์"
 
-    chunks = []
-    while integer > 0:
-        chunks.append(integer % 1_000_000)
-        integer //= 1_000_000
+        chunks = []
+        while num > 0:
+            chunks.append(num % 1_000_000)
+            num //= 1_000_000
 
-    words = []
-    for idx in range(len(chunks) - 1, -1, -1):
-        chunk = chunks[idx]
-        if chunk == 0:
-            continue
-        chunk_text = read_under_million(chunk)
-        if idx > 0:
-            words.append(chunk_text + "ล้าน")
-        else:
-            words.append(chunk_text)
-    return "".join(words) + "บาทถ้วน"
+        words = []
+        for idx in range(len(chunks) - 1, -1, -1):
+            chunk = chunks[idx]
+            if chunk == 0:
+                continue
+            chunk_text = read_under_million(chunk)
+            if idx > 0:
+                words.append(chunk_text + "ล้าน")
+            else:
+                words.append(chunk_text)
+        return "".join(words)
+
+    baht_text = f"{read_number(baht)}บาท"
+    if satang == 0:
+        return f"{baht_text}ถ้วน"
+    return f"{baht_text}{read_number(satang)}สตางค์"
 
 
 def apply_base_format(ws, max_rows: int = 800) -> None:
@@ -580,9 +588,8 @@ def write_lawson_big_sheet(ws, config: dict, rows: list[dict]) -> None:
     total_grand = sum(r["total"] for r in rows)
     ws.merge_cells(start_row=total_row, start_column=1, end_row=total_row, end_column=2)
     ws[f"A{total_row}"] = "รวมทั้งหมด"
-    ws[f"C{total_row}"] = "IN64002102"
-    ws.merge_cells(start_row=total_row, start_column=4, end_row=total_row, end_column=7)
-    ws[f"D{total_row}"] = thai_baht_text(total_grand)
+    ws.merge_cells(start_row=total_row, start_column=3, end_row=total_row, end_column=7)
+    ws[f"C{total_row}"] = thai_baht_text(total_grand)
     ws[f"H{total_row}"] = f"=SUM(H{data_start}:H{total_row - 1})"
     ws[f"I{total_row}"] = f"=SUM(I{data_start}:I{total_row - 1})"
     ws[f"J{total_row}"] = f"=SUM(J{data_start}:J{total_row - 1})"

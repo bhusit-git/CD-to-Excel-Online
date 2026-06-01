@@ -223,7 +223,9 @@ function roundCurrency(value) {
 }
 
 export function thaiBahtText(amount) {
-    const integer = Math.round(amount);
+    const totalSatang = Math.round((Number(amount) || 0) * 100);
+    const baht = Math.floor(totalSatang / 100);
+    const satang = totalSatang % 100;
 
     function readUnderMillion(num) {
         if (num === 0) return "";
@@ -255,27 +257,28 @@ export function thaiBahtText(amount) {
         return parts.join("");
     }
 
-    if (integer === 0) return "ศูนย์บาทถ้วน";
-
-    const chunks = [];
-    let temp = integer;
-    while (temp > 0) {
-        chunks.push(temp % 1000000);
-        temp = Math.floor(temp / 1000000);
-    }
-
-    const words = [];
-    for (let idx = chunks.length - 1; idx >= 0; idx--) {
-        const chunk = chunks[idx];
-        if (chunk === 0) continue;
-        const chunkText = readUnderMillion(chunk);
-        if (idx > 0) {
-            words.push(chunkText + "ล้าน");
-        } else {
-            words.push(chunkText);
+    function readNumber(num) {
+        if (num === 0) return "ศูนย์";
+        const chunks = [];
+        let temp = num;
+        while (temp > 0) {
+            chunks.push(temp % 1000000);
+            temp = Math.floor(temp / 1000000);
         }
+
+        const words = [];
+        for (let idx = chunks.length - 1; idx >= 0; idx--) {
+            const chunk = chunks[idx];
+            if (chunk === 0) continue;
+            const chunkText = readUnderMillion(chunk);
+            words.push(idx > 0 ? chunkText + "ล้าน" : chunkText);
+        }
+        return words.join("");
     }
-    return words.join("") + "บาทถ้วน";
+
+    const bahtText = `${readNumber(baht)}บาท`;
+    if (satang === 0) return `${bahtText}ถ้วน`;
+    return `${bahtText}${readNumber(satang)}สตางค์`;
 }
 
 export function buildTransRows(customersList, transRows, branchIds, productCode, periodStart, periodEnd) {
@@ -515,9 +518,8 @@ export function writeLawsonBigSheet(ws, config, rows, billDateText) {
 
     ws.mergeCells(totalRow, 1, totalRow, 2);
     ws.getCell(totalRow, 1).value = "รวมทั้งหมด";
-    ws.getCell(totalRow, 3).value = "IN64002102";
-    ws.mergeCells(totalRow, 4, totalRow, 7);
-    ws.getCell(totalRow, 4).value = thaiBahtText(totalGrand);
+    ws.mergeCells(totalRow, 3, totalRow, 7);
+    ws.getCell(totalRow, 3).value = thaiBahtText(totalGrand);
     
     if (rows.length > 0) {
         ws.getCell(totalRow, 8).value = { formula: `SUM(H${dataStart}:H${totalRow - 1})` };
