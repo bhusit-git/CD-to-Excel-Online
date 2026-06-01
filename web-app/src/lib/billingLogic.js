@@ -376,7 +376,7 @@ function applyBaseFormat(ws) {
     ws.views = [{ showGridLines: false }];
     ws.pageSetup = {
         paperSize: 9, // A4
-        orientation: "landscape",
+        orientation: "portrait",
         fitToPage: true,
         fitToWidth: 1,
         fitToHeight: 0,
