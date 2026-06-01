@@ -394,37 +394,39 @@ function applyBaseFormat(ws) {
         },
     };
     ws.columns = [
-        { width: 8 },  // A
-        { width: 18 }, // B
-        { width: 14 }, // C
-        { width: 12 }, // D
-        { width: 30 }, // E
-        { width: 12 }, // F
-        { width: 12 }, // G
-        { width: 14 }, // H
-        { width: 14 }, // I
-        { width: 14 }, // J
-        { width: 14 }, // K
-        { width: 14 }, // L
+        { width: 6 },  // A
+        { width: 12 }, // B
+        { width: 11 }, // C
+        { width: 11 }, // D
+        { width: 20 }, // E
+        { width: 8 },  // F
+        { width: 8 },  // G
+        { width: 11 }, // H
+        { width: 11 }, // I
+        { width: 12 }, // J
+        { width: 0 },  // K
+        { width: 0 },  // L
     ];
 }
 
 function writeCommonHeader(ws, config, billDateText) {
-    ws.mergeCells("A1:L1");
+    ws.mergeCells("A1:J1");
     ws.getCell("A1").value = "ใบวางบิล/ใบแจ้งหนี้";
     ws.getCell("A1").font = { name: "Angsana New", size: TITLE_FONT_SIZE, bold: true };
     ws.getCell("A1").alignment = { horizontal: "center" };
 
-    ws.mergeCells("A2:J2");
+    ws.mergeCells("A2:H2");
     ws.getCell("A2").value = "บริษัท ซูเปอร์ ไอซ์ จำกัด  สำนักงานใหญ่";
     ws.getCell("A2").font = { name: "Angsana New", size: SUBTITLE_FONT_SIZE, bold: true };
-    ws.getCell("K2").value = "ต้นฉบับ";
-    ws.getCell("K2").font = { name: "Angsana New", size: BODY_FONT_SIZE, bold: true };
+    ws.mergeCells("I2:J2");
+    ws.getCell("I2").value = "ต้นฉบับ";
+    ws.getCell("I2").font = { name: "Angsana New", size: BODY_FONT_SIZE, bold: true };
+    ws.getCell("I2").alignment = { horizontal: "center", vertical: "middle" };
 
     ws.mergeCells("A3:H3");
     ws.getCell("A3").value = "ที่อยู่ 18/39 ซอยนวมินทร์ 111 แยก 15 แขวงนวมินทร์ เขตบึงกุ่ม กรุงเทพมหานคร 10240";
     ws.getCell("A3").font = { name: "Angsana New", size: BODY_FONT_SIZE };
-    ws.mergeCells("I3:L3");
+    ws.mergeCells("I3:J3");
     ws.getCell("I3").value = `เลขที่บิล ${config.bill_no}`;
     ws.getCell("I3").font = { name: "Angsana New", size: BODY_FONT_SIZE };
     ws.getCell("I3").alignment = { horizontal: "center", vertical: "middle" };
@@ -433,25 +435,25 @@ function writeCommonHeader(ws, config, billDateText) {
     ws.getCell("A4").value = "เลขประจำตัวผู้เสียภาษี 0105542031756";
     ws.getCell("A4").font = { name: "Angsana New", size: BODY_FONT_SIZE };
 
-    ws.mergeCells("I5:L5");
+    ws.mergeCells("I5:J5");
     ws.getCell("I5").value = billDateText;
     ws.getCell("I5").alignment = { horizontal: "center" };
     ws.getCell("I5").font = { name: "Angsana New", size: BODY_FONT_SIZE, bold: true };
 
-    ws.mergeCells("A6:L6");
+    ws.mergeCells("A6:J6");
     ws.getCell("A6").value = config.customer_line;
     ws.getCell("A6").font = { name: "Angsana New", size: BODY_FONT_SIZE, bold: true };
 
-    ws.mergeCells("A7:L7");
+    ws.mergeCells("A7:J7");
     ws.getCell("A7").value = config.address_line;
     ws.getCell("A7").font = { name: "Angsana New", size: BODY_FONT_SIZE };
 
-    ws.mergeCells("A8:L8");
+    ws.mergeCells("A8:J8");
     ws.getCell("A8").value = config.tax_line;
     ws.getCell("A8").font = { name: "Angsana New", size: BODY_FONT_SIZE };
 
     if (config.title) {
-        ws.mergeCells("A9:L9");
+        ws.mergeCells("A9:J9");
         ws.getCell("A9").value = config.title;
         ws.getCell("A9").font = { name: "Angsana New", size: BODY_FONT_SIZE, bold: true };
     }
@@ -539,6 +541,7 @@ export function writeLawsonBigSheet(ws, config, rows, billDateText) {
     ws.getCell(footerRow + 1, 7).value = "วันที่รับวางบิล………………………..";
     ws.getCell(footerRow, 10).value = "วันที่วางบิล.................................";
     ws.getCell(footerRow + 1, 10).value = "วันที่จ่ายชำระ.............................";
+    ws.pageSetup.printArea = `A1:J${footerRow + 1}`;
     
     // Add missing fonts for footer
     [footerRow, footerRow+1].forEach(r => {
@@ -621,6 +624,7 @@ export function writeNarrowSheet(ws, config, rows, combinedSmall, billDateText) 
     ws.getCell(footerRow + 2, 1).value = "วันที่วางบิล.................................";
     ws.getCell(footerRow + 2, 7).value = "วันที่รับวางบิล .................................................";
     ws.getCell(footerRow + 4, 1).value = "วันที่จ่ายชำระ.............................";
+    ws.pageSetup.printArea = `A1:J${footerRow + 4}`;
     
     // Add missing fonts for footer
     [footerRow, footerRow+2, footerRow+4].forEach(r => {
