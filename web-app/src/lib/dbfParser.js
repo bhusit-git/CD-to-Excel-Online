@@ -1,4 +1,5 @@
 import iconv from 'iconv-lite';
+import { Buffer } from 'buffer';
 
 /**
  * Parses a DBF file from an ArrayBuffer

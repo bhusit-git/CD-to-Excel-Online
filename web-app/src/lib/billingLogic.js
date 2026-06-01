@@ -180,7 +180,6 @@ export function monthBounds(monthText) {
     const parts = monthText.split("-");
     const year = parseInt(parts[0], 10);
     const month = parseInt(parts[1], 10) - 1;
-    const startDay = new Date(year, month, 1);
     const startStr = `${year}${String(month + 1).padStart(2, "0")}01`;
     const lastDay = new Date(year, month + 1, 0);
     const endStr = `${year}${String(month + 1).padStart(2, "0")}${String(lastDay.getDate()).padStart(2, "0")}`;
@@ -198,7 +197,7 @@ export function parseBillNumber(raw) {
 }
 
 export function numericKey(raw) {
-    const digits = String(raw).replace(/\\D/g, "");
+    const digits = String(raw).replace(/\D/g, "");
     return digits ? parseInt(digits, 10) : 0;
 }
 
@@ -213,7 +212,11 @@ export function parseYmd(raw) {
 
 export function cleanBranchName(raw) {
     raw = (raw || "").trim();
-    return raw.replace(/^P\\d+\\s*สาขา\\s*/, "");
+    return raw.replace(/^P\d+\s*สาขา\s*/, "");
+}
+
+function roundCurrency(value) {
+    return Math.round((Number(value) || 0) * 100) / 100;
 }
 
 export function thaiBahtText(amount) {
@@ -287,9 +290,11 @@ export function buildTransRows(customersList, transRows, branchIds, productCode,
         if (dateRaw < periodStart || dateRaw > periodEnd) continue;
 
         const cust = customers[custId] || {};
-        const total = parseFloat(row.AMT || 0);
-        const amount = Math.round((total / 1.07) * 1e12) / 1e12; // JS floating point workaround
-        const vat = Math.round((total - amount) * 1e12) / 1e12;
+        const qty = parseFloat(row.QTY || 0);
+        const price = parseFloat(row.PRICE || 0);
+        const amount = roundCurrency(qty * price);
+        const vat = roundCurrency(amount * 0.07);
+        const total = roundCurrency(amount + vat);
         const branchName = cleanBranchName(cust.SH_NAME || cust.SHIP_NAME || cust.NAME || "");
 
         rows.push({
@@ -298,8 +303,8 @@ export function buildTransRows(customersList, transRows, branchIds, productCode,
             branch: `P${custId}`,
             bill_no: parseBillNumber(row.BILL_NO),
             branch_name: branchName,
-            qty: parseFloat(row.QTY || 0),
-            price: parseFloat(row.PRICE || 0),
+            qty: qty,
+            price: price,
             amount: amount,
             vat: vat,
             total: total,
@@ -339,7 +344,7 @@ export function buildSmallBillRows(customersList, billRows, branchIds, periodSta
 
         const cust = customers[custId] || {};
         const branchName = cleanBranchName(cust.SH_NAME || cust.SHIP_NAME || cust.NAME || "");
-        const qty = Math.round(total / SMALL_PRICE);
+        const qty = Math.round(amount / SMALL_PRICE);
 
         rows.push({
             dateObj: parseYmd(dateRaw),
@@ -368,7 +373,23 @@ export function buildSmallBillRows(customersList, billRows, branchIds, periodSta
 }
 
 function applyBaseFormat(ws) {
-    ws.views = [{ showGridLines: false, state: 'frozen', ySplit: 11 }];
+    ws.views = [{ showGridLines: false }];
+    ws.pageSetup = {
+        paperSize: 9, // A4
+        orientation: "landscape",
+        fitToPage: true,
+        fitToWidth: 1,
+        fitToHeight: 0,
+        horizontalCentered: true,
+        margins: {
+            left: 0.25,
+            right: 0.25,
+            top: 0.5,
+            bottom: 0.5,
+            header: 0.2,
+            footer: 0.2,
+        },
+    };
     ws.columns = [
         { width: 8 },  // A
         { width: 18 }, // B
@@ -462,9 +483,9 @@ export function writeLawsonBigSheet(ws, config, rows, billDateText) {
         row.getCell(5).value = record.branch_name;
         row.getCell(6).value = record.qty;
         row.getCell(7).value = record.price;
-        row.getCell(8).value = { formula: `ROUND(F${dataStart + i}*G${dataStart + i}/1.07,2)` };
-        row.getCell(9).value = { formula: `ROUND(J${dataStart + i}-H${dataStart + i},2)` };
-        row.getCell(10).value = { formula: `ROUND(F${dataStart + i}*G${dataStart + i},2)` };
+        row.getCell(8).value = { formula: `ROUND(F${dataStart + i}*G${dataStart + i},2)`, result: record.amount };
+        row.getCell(9).value = { formula: `ROUND(H${dataStart + i}*0.07,2)`, result: record.vat };
+        row.getCell(10).value = { formula: `ROUND(H${dataStart + i}+I${dataStart + i},2)`, result: record.total };
 
         for (let col = 1; col <= 10; col++) {
             const cell = row.getCell(col);
@@ -547,9 +568,9 @@ export function writeNarrowSheet(ws, config, rows, combinedSmall, billDateText) 
         row.getCell(5).value = label;
         row.getCell(6).value = record.qty;
         row.getCell(7).value = record.price;
-        row.getCell(8).value = { formula: `ROUND(F${dataStart + i}*G${dataStart + i}/1.07,2)` };
-        row.getCell(9).value = { formula: `ROUND(J${dataStart + i}-H${dataStart + i},2)` };
-        row.getCell(10).value = { formula: `ROUND(F${dataStart + i}*G${dataStart + i},2)` };
+        row.getCell(8).value = { formula: `ROUND(F${dataStart + i}*G${dataStart + i},2)`, result: record.amount };
+        row.getCell(9).value = { formula: `ROUND(H${dataStart + i}*0.07,2)`, result: record.vat };
+        row.getCell(10).value = { formula: `ROUND(H${dataStart + i}+I${dataStart + i},2)`, result: record.total };
 
         for (let col = 1; col <= 10; col++) {
             const cell = row.getCell(col);
