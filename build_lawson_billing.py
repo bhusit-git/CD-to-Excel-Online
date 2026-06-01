@@ -19,6 +19,9 @@ BASE_DIR = DEFAULT_BASE_DIR
 OUTPUT_XLSX = DEFAULT_OUTPUT_XLSX
 PERIOD_START = "20260401"
 PERIOD_END = "20260430"
+BODY_FONT_SIZE = 18
+SUBTITLE_FONT_SIZE = 20
+TITLE_FONT_SIZE = 22
 THAI_MONTHS = [
     "",
     "มกราคม",
@@ -245,27 +248,28 @@ def apply_base_format(ws):
 
     for row in range(1, 500):
         for col in range(1, 13):
-            ws.cell(row=row, column=col).font = Font(name="Angsana New", size=16)
+            ws.cell(row=row, column=col).font = Font(name="Angsana New", size=BODY_FONT_SIZE)
             ws.cell(row=row, column=col).alignment = Alignment(vertical="center")
 
 
 def write_header(ws, bill_date_text: str):
     ws.merge_cells("A1:L1")
     ws["A1"] = "ใบวางบิล/ใบแจ้งหนี้"
-    ws["A1"].font = Font(name="Angsana New", size=20, bold=True)
+    ws["A1"].font = Font(name="Angsana New", size=TITLE_FONT_SIZE, bold=True)
     ws["A1"].alignment = Alignment(horizontal="center")
 
     ws.merge_cells("A2:J2")
     ws["A2"] = "บริษัท ซูเปอร์ ไอซ์ จำกัด  สำนักงานใหญ่"
-    ws["A2"].font = Font(name="Angsana New", size=18, bold=True)
+    ws["A2"].font = Font(name="Angsana New", size=SUBTITLE_FONT_SIZE, bold=True)
 
     ws["K2"] = "ต้นฉบับ"
-    ws["K2"].font = Font(name="Angsana New", size=16, bold=True)
+    ws["K2"].font = Font(name="Angsana New", size=BODY_FONT_SIZE, bold=True)
 
     ws.merge_cells("A3:H3")
     ws["A3"] = "ที่อยู่ 18/39 ซอยนวมินทร์ 111 แยก 15 แขวงนวมินทร์ เขตบึงกุ่ม กรุงเทพมหานคร 10240"
     ws.merge_cells("I3:L3")
     ws["I3"] = "เลขที่บิล 6905001"
+    ws["I3"].alignment = Alignment(horizontal="center", vertical="center")
 
     ws.merge_cells("A4:H4")
     ws["A4"] = "เลขประจำตัวผู้เสียภาษี 0105542031756"
@@ -273,11 +277,11 @@ def write_header(ws, bill_date_text: str):
     ws.merge_cells("I5:L5")
     ws["I5"] = bill_date_text
     ws["I5"].alignment = Alignment(horizontal="center")
-    ws["I5"].font = Font(name="Angsana New", size=16, bold=True)
+    ws["I5"].font = Font(name="Angsana New", size=BODY_FONT_SIZE, bold=True)
 
     ws.merge_cells("A6:L6")
     ws["A6"] = "ชื่อลูกค้า : บริษัท สห ลอว์สัน จำกัด"
-    ws["A6"].font = Font(name="Angsana New", size=16, bold=True)
+    ws["A6"].font = Font(name="Angsana New", size=BODY_FONT_SIZE, bold=True)
 
     ws.merge_cells("A7:L7")
     ws["A7"] = "เลขที่ 2170 อาคารกรุงเทพทาวเวอร์ ชั้น 3 ถนนเพชรบุรีตัดใหม่ แขวงบางกะปิ เขตห้วยขวาง กรุงเทพมหานคร 10310"
@@ -287,7 +291,7 @@ def write_header(ws, bill_date_text: str):
 
     ws.merge_cells("A9:L9")
     ws["A9"] = "รายการ : น้ำแข็งหลอดใหญ่แพ็ค 1.4 KG (ห่อ)"
-    ws["A9"].font = Font(name="Angsana New", size=16, bold=True)
+    ws["A9"].font = Font(name="Angsana New", size=BODY_FONT_SIZE, bold=True)
 
 
 def write_table(ws, rows: list[dict]) -> int:
@@ -313,7 +317,7 @@ def write_table(ws, rows: list[dict]) -> int:
     header_row = 11
     for col_idx, header in enumerate(headers, start=1):
         cell = ws.cell(row=header_row, column=col_idx, value=header)
-        cell.font = Font(name="Angsana New", size=16, bold=True)
+        cell.font = Font(name="Angsana New", size=BODY_FONT_SIZE, bold=True)
         cell.alignment = Alignment(horizontal="center", vertical="center")
         cell.fill = header_fill
         cell.border = border
@@ -358,7 +362,7 @@ def write_table(ws, rows: list[dict]) -> int:
 
     total_row = data_start + len(rows)
     ws["A" + str(total_row)] = "รวมทั้งหมด"
-    ws["A" + str(total_row)].font = Font(name="Angsana New", size=16, bold=True)
+    ws["A" + str(total_row)].font = Font(name="Angsana New", size=BODY_FONT_SIZE, bold=True)
     ws.merge_cells(start_row=total_row, start_column=1, end_row=total_row, end_column=2)
     ws["C" + str(total_row)] = "IN64002102"
     ws["D" + str(total_row)] = thai_baht_text(total_grand)
@@ -371,7 +375,7 @@ def write_table(ws, rows: list[dict]) -> int:
         ws.cell(row=total_row, column=col_idx).border = border
         if col_idx in (10, 11, 12):
             ws.cell(row=total_row, column=col_idx).number_format = '#,##0.00'
-            ws.cell(row=total_row, column=col_idx).font = Font(name="Angsana New", size=16, bold=True)
+            ws.cell(row=total_row, column=col_idx).font = Font(name="Angsana New", size=BODY_FONT_SIZE, bold=True)
 
     return total_row
 

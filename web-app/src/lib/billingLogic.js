@@ -2,6 +2,9 @@ import ExcelJS from 'exceljs';
 
 const SMALL_PRICE = 60.0;
 const SMALL_SUMMARY_BILLS = new Set(["69 040870", "69 040871", "69 040872", "69 040873"]);
+const BODY_FONT_SIZE = 18;
+const SUBTITLE_FONT_SIZE = 20;
+const TITLE_FONT_SIZE = 22;
 
 const THAI_MONTHS = [
     "",
@@ -409,42 +412,48 @@ function applyBaseFormat(ws) {
 function writeCommonHeader(ws, config, billDateText) {
     ws.mergeCells("A1:L1");
     ws.getCell("A1").value = "ใบวางบิล/ใบแจ้งหนี้";
-    ws.getCell("A1").font = { name: "Angsana New", size: 20, bold: true };
+    ws.getCell("A1").font = { name: "Angsana New", size: TITLE_FONT_SIZE, bold: true };
     ws.getCell("A1").alignment = { horizontal: "center" };
 
     ws.mergeCells("A2:J2");
     ws.getCell("A2").value = "บริษัท ซูเปอร์ ไอซ์ จำกัด  สำนักงานใหญ่";
-    ws.getCell("A2").font = { name: "Angsana New", size: 18, bold: true };
+    ws.getCell("A2").font = { name: "Angsana New", size: SUBTITLE_FONT_SIZE, bold: true };
     ws.getCell("K2").value = "ต้นฉบับ";
-    ws.getCell("K2").font = { name: "Angsana New", size: 16, bold: true };
+    ws.getCell("K2").font = { name: "Angsana New", size: BODY_FONT_SIZE, bold: true };
 
     ws.mergeCells("A3:H3");
     ws.getCell("A3").value = "ที่อยู่ 18/39 ซอยนวมินทร์ 111 แยก 15 แขวงนวมินทร์ เขตบึงกุ่ม กรุงเทพมหานคร 10240";
+    ws.getCell("A3").font = { name: "Angsana New", size: BODY_FONT_SIZE };
     ws.mergeCells("I3:L3");
     ws.getCell("I3").value = `เลขที่บิล ${config.bill_no}`;
+    ws.getCell("I3").font = { name: "Angsana New", size: BODY_FONT_SIZE };
+    ws.getCell("I3").alignment = { horizontal: "center", vertical: "middle" };
 
     ws.mergeCells("A4:H4");
     ws.getCell("A4").value = "เลขประจำตัวผู้เสียภาษี 0105542031756";
+    ws.getCell("A4").font = { name: "Angsana New", size: BODY_FONT_SIZE };
 
     ws.mergeCells("I5:L5");
     ws.getCell("I5").value = billDateText;
     ws.getCell("I5").alignment = { horizontal: "center" };
-    ws.getCell("I5").font = { name: "Angsana New", size: 16, bold: true };
+    ws.getCell("I5").font = { name: "Angsana New", size: BODY_FONT_SIZE, bold: true };
 
     ws.mergeCells("A6:L6");
     ws.getCell("A6").value = config.customer_line;
-    ws.getCell("A6").font = { name: "Angsana New", size: 16, bold: true };
+    ws.getCell("A6").font = { name: "Angsana New", size: BODY_FONT_SIZE, bold: true };
 
     ws.mergeCells("A7:L7");
     ws.getCell("A7").value = config.address_line;
+    ws.getCell("A7").font = { name: "Angsana New", size: BODY_FONT_SIZE };
 
     ws.mergeCells("A8:L8");
     ws.getCell("A8").value = config.tax_line;
+    ws.getCell("A8").font = { name: "Angsana New", size: BODY_FONT_SIZE };
 
     if (config.title) {
         ws.mergeCells("A9:L9");
         ws.getCell("A9").value = config.title;
-        ws.getCell("A9").font = { name: "Angsana New", size: 16, bold: true };
+        ws.getCell("A9").font = { name: "Angsana New", size: BODY_FONT_SIZE, bold: true };
     }
 }
 
@@ -465,7 +474,7 @@ export function writeLawsonBigSheet(ws, config, rows, billDateText) {
     for (let i = 0; i < headers.length; i++) {
         const cell = ws.getCell(rowIdx, i + 1);
         cell.value = headers[i];
-        cell.font = { name: "Angsana New", size: 16, bold: true };
+        cell.font = { name: "Angsana New", size: BODY_FONT_SIZE, bold: true };
         cell.alignment = { horizontal: "center", vertical: "middle" };
         cell.border = borderStyle;
         cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFD9EAD3" } };
@@ -490,7 +499,7 @@ export function writeLawsonBigSheet(ws, config, rows, billDateText) {
         for (let col = 1; col <= 10; col++) {
             const cell = row.getCell(col);
             cell.border = borderStyle;
-            cell.font = { name: "Angsana New", size: 16 };
+            cell.font = { name: "Angsana New", size: BODY_FONT_SIZE };
             if (col === 2) cell.alignment = { horizontal: "center" };
             else if (col === 1 || col === 6) { cell.numFmt = "0"; cell.alignment = { horizontal: "center" }; }
             else if (col === 7) { cell.numFmt = "0.00"; cell.alignment = { horizontal: "center" }; }
@@ -517,7 +526,7 @@ export function writeLawsonBigSheet(ws, config, rows, billDateText) {
     for (let col = 1; col <= 10; col++) {
         const cell = ws.getCell(totalRow, col);
         cell.border = borderStyle;
-        cell.font = { name: "Angsana New", size: 16, bold: col >= 8 };
+        cell.font = { name: "Angsana New", size: BODY_FONT_SIZE, bold: col >= 8 };
         if (col >= 8) cell.numFmt = "#,##0.00";
     }
 
@@ -534,7 +543,7 @@ export function writeLawsonBigSheet(ws, config, rows, billDateText) {
     // Add missing fonts for footer
     [footerRow, footerRow+1].forEach(r => {
         [1, 7, 10].forEach(c => {
-            if(ws.getCell(r, c).value) ws.getCell(r, c).font = { name: "Angsana New", size: 16 };
+            if(ws.getCell(r, c).value) ws.getCell(r, c).font = { name: "Angsana New", size: BODY_FONT_SIZE };
         });
     });
 }
@@ -549,7 +558,7 @@ export function writeNarrowSheet(ws, config, rows, combinedSmall, billDateText) 
     for (let i = 0; i < headers.length; i++) {
         const cell = ws.getCell(rowIdx, i + 1);
         cell.value = headers[i];
-        cell.font = { name: "Angsana New", size: 16, bold: true };
+        cell.font = { name: "Angsana New", size: BODY_FONT_SIZE, bold: true };
         cell.alignment = { horizontal: "center", vertical: "middle" };
         cell.border = borderStyle;
         cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFD9EAD3" } };
@@ -575,7 +584,7 @@ export function writeNarrowSheet(ws, config, rows, combinedSmall, billDateText) 
         for (let col = 1; col <= 10; col++) {
             const cell = row.getCell(col);
             cell.border = borderStyle;
-            cell.font = { name: "Angsana New", size: 16 };
+            cell.font = { name: "Angsana New", size: BODY_FONT_SIZE };
             if (col === 2) cell.alignment = { horizontal: "center" };
             else if (col === 1 || col === 6) { cell.numFmt = "0"; cell.alignment = { horizontal: "center" }; }
             else if (col === 7) { cell.numFmt = "0.00"; cell.alignment = { horizontal: "center" }; }
@@ -600,7 +609,7 @@ export function writeNarrowSheet(ws, config, rows, combinedSmall, billDateText) 
     for (let col = 1; col <= 10; col++) {
         const cell = ws.getCell(totalRow, col);
         cell.border = borderStyle;
-        cell.font = { name: "Angsana New", size: 16, bold: true };
+        cell.font = { name: "Angsana New", size: BODY_FONT_SIZE, bold: true };
         if (col >= 8) cell.numFmt = "#,##0.00";
     }
 
@@ -616,7 +625,7 @@ export function writeNarrowSheet(ws, config, rows, combinedSmall, billDateText) 
     // Add missing fonts for footer
     [footerRow, footerRow+2, footerRow+4].forEach(r => {
         [1, 2, 7, 10].forEach(c => {
-            if(ws.getCell(r, c).value) ws.getCell(r, c).font = { name: "Angsana New", size: 16 };
+            if(ws.getCell(r, c).value) ws.getCell(r, c).font = { name: "Angsana New", size: BODY_FONT_SIZE };
         });
     });
 }
