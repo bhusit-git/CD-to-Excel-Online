@@ -54,6 +54,17 @@ const SHEET_CONFIGS = [
         branch_ids: ["3653"],
     },
     {
+        name: "ซัสโก้หลอดเล็ก",
+        kind: "franchise_small",
+        bill_no: "6905014",
+        customer_line: "ชื่อลูกค้า : บริษัท ซัสโก้มาร์เก็ตติ้ง จำกัด (สาขาที่ 00025 ประเวศ)",
+        address_line: "ที่อยู่ : 161 ถ.มอเตอร์เวย์ แขวงทับช้าง เขตสะพานสูง กรุงเทพ 10250",
+        tax_line: "เลขประจำผู้เสียภาษี : 0105539021915",
+        product_code: "06",
+        branch_ids: ["3653"],
+        title: "รายการ : น้ำแข็งหลอดเล็ก",
+    },
+    {
         name: "แฟรนไชส์หัวหมาก",
         kind: "franchise_big",
         bill_no: "6905003",
@@ -573,7 +584,9 @@ export function writeNarrowSheet(ws, config, rows, combinedSmall, billDateText) 
     for (let i = 0; i < rows.length; i++) {
         const record = rows[i];
         const row = ws.getRow(dataStart + i);
-        const label = (combinedSmall || config.kind === "lawson_small_single") ? record.branch_name : "หลอดใหญ่";
+        const label = (combinedSmall || config.kind === "lawson_small_single")
+            ? record.branch_name
+            : (config.product_code === "06" ? "หลอดเล็ก" : "หลอดใหญ่");
         
         row.getCell(1).value = record.seq;
         row.getCell(2).value = record.dateStr;
@@ -667,7 +680,7 @@ export async function generateBillingWorkbook(bigSourceData, smallSourceData, mo
 
         if (config.kind === "lawson_big") {
             writeLawsonBigSheet(ws, config, rows, billDateText);
-        } else if (config.kind === "franchise_big") {
+        } else if (config.kind === "franchise_big" || config.kind === "franchise_small") {
             writeNarrowSheet(ws, config, rows, false, billDateText);
         } else if (config.kind === "lawson_small_combined") {
             writeNarrowSheet(ws, config, rows, true, billDateText);
