@@ -63,6 +63,7 @@ const SHEET_CONFIGS = [
         product_code: "06",
         branch_ids: ["3653"],
         title: "รายการ : น้ำแข็งหลอดเล็ก",
+        price_includes_vat: true,
     },
     {
         name: "แฟรนไชส์หัวหมาก",
@@ -292,7 +293,7 @@ export function thaiBahtText(amount) {
     return `${bahtText}${readNumber(satang)}สตางค์`;
 }
 
-export function buildTransRows(customersList, transRows, branchIds, productCode, periodStart, periodEnd) {
+export function buildTransRows(customersList, transRows, branchIds, productCode, periodStart, periodEnd, priceIncludesVat = false) {
     const customers = {};
     customersList.forEach(c => customers[c.ID] = c);
 
@@ -309,9 +310,10 @@ export function buildTransRows(customersList, transRows, branchIds, productCode,
         const cust = customers[custId] || {};
         const qty = parseFloat(row.QTY || 0);
         const price = parseFloat(row.PRICE || 0);
-        const amount = roundCurrency(qty * price);
-        const vat = roundCurrency(amount * 0.07);
-        const total = roundCurrency(amount + vat);
+        const gross = roundCurrency(qty * price);
+        const amount = priceIncludesVat ? roundCurrency(gross / 1.07) : gross;
+        const vat = priceIncludesVat ? roundCurrency(gross - amount) : roundCurrency(amount * 0.07);
+        const total = priceIncludesVat ? gross : roundCurrency(amount + vat);
         const branchName = cleanBranchName(cust.SH_NAME || cust.SHIP_NAME || cust.NAME || "");
 
         rows.push({
@@ -508,9 +510,15 @@ export function writeLawsonBigSheet(ws, config, rows, billDateText) {
         row.getCell(5).value = record.branch_name;
         row.getCell(6).value = record.qty;
         row.getCell(7).value = record.price;
-        row.getCell(8).value = { formula: `ROUND(F${dataStart + i}*G${dataStart + i},2)`, result: record.amount };
-        row.getCell(9).value = { formula: `ROUND(H${dataStart + i}*0.07,2)`, result: record.vat };
-        row.getCell(10).value = { formula: `ROUND(H${dataStart + i}+I${dataStart + i},2)`, result: record.total };
+        if (config.price_includes_vat) {
+            row.getCell(8).value = { formula: `ROUND(F${dataStart + i}*G${dataStart + i}/1.07,2)`, result: record.amount };
+            row.getCell(9).value = { formula: `ROUND(J${dataStart + i}-H${dataStart + i},2)`, result: record.vat };
+            row.getCell(10).value = { formula: `ROUND(F${dataStart + i}*G${dataStart + i},2)`, result: record.total };
+        } else {
+            row.getCell(8).value = { formula: `ROUND(F${dataStart + i}*G${dataStart + i},2)`, result: record.amount };
+            row.getCell(9).value = { formula: `ROUND(H${dataStart + i}*0.07,2)`, result: record.vat };
+            row.getCell(10).value = { formula: `ROUND(H${dataStart + i}+I${dataStart + i},2)`, result: record.total };
+        }
 
         for (let col = 1; col <= 10; col++) {
             const cell = row.getCell(col);
@@ -595,9 +603,15 @@ export function writeNarrowSheet(ws, config, rows, combinedSmall, billDateText) 
         row.getCell(5).value = label;
         row.getCell(6).value = record.qty;
         row.getCell(7).value = record.price;
-        row.getCell(8).value = { formula: `ROUND(F${dataStart + i}*G${dataStart + i},2)`, result: record.amount };
-        row.getCell(9).value = { formula: `ROUND(H${dataStart + i}*0.07,2)`, result: record.vat };
-        row.getCell(10).value = { formula: `ROUND(H${dataStart + i}+I${dataStart + i},2)`, result: record.total };
+        if (config.price_includes_vat) {
+            row.getCell(8).value = { formula: `ROUND(F${dataStart + i}*G${dataStart + i}/1.07,2)`, result: record.amount };
+            row.getCell(9).value = { formula: `ROUND(J${dataStart + i}-H${dataStart + i},2)`, result: record.vat };
+            row.getCell(10).value = { formula: `ROUND(F${dataStart + i}*G${dataStart + i},2)`, result: record.total };
+        } else {
+            row.getCell(8).value = { formula: `ROUND(F${dataStart + i}*G${dataStart + i},2)`, result: record.amount };
+            row.getCell(9).value = { formula: `ROUND(H${dataStart + i}*0.07,2)`, result: record.vat };
+            row.getCell(10).value = { formula: `ROUND(H${dataStart + i}+I${dataStart + i},2)`, result: record.total };
+        }
 
         for (let col = 1; col <= 10; col++) {
             const cell = row.getCell(col);
@@ -674,7 +688,15 @@ export async function generateBillingWorkbook(bigSourceData, smallSourceData, mo
             }
         } else {
             if (bigSourceData) {
-                rows = buildTransRows(bigSourceData.mcust, bigSourceData.atrans, config.branch_ids, config.product_code, periodStart, periodEnd);
+                rows = buildTransRows(
+                    bigSourceData.mcust,
+                    bigSourceData.atrans,
+                    config.branch_ids,
+                    config.product_code,
+                    periodStart,
+                    periodEnd,
+                    config.price_includes_vat
+                );
             }
         }
 
