@@ -234,6 +234,10 @@ function roundCurrency(value) {
     return Math.round((Number(value) || 0) * 100) / 100;
 }
 
+function priceIncludesVat(config) {
+    return config.price_includes_vat || config.product_code === "06";
+}
+
 export function thaiBahtText(amount) {
     const totalSatang = Math.round((Number(amount) || 0) * 100);
     const baht = Math.floor(totalSatang / 100);
@@ -356,14 +360,14 @@ export function buildSmallBillRows(customersList, billRows, branchIds, periodSta
         if (dateRaw < periodStart || dateRaw > periodEnd) continue;
         if (SMALL_SUMMARY_BILLS.has(row.NO || "")) continue;
 
-        const amount = parseFloat(row.BAL_AMT || 0);
-        const vat = parseFloat(row.VAT_AMT || 0);
-        const total = Math.round((amount + vat) * 100) / 100;
+        const total = roundCurrency(parseFloat(row.BAL_AMT || 0) + parseFloat(row.VAT_AMT || 0));
         if (total <= 0) continue;
 
         const cust = customers[custId] || {};
         const branchName = cleanBranchName(cust.SH_NAME || cust.SHIP_NAME || cust.NAME || "");
-        const qty = Math.round(amount / SMALL_PRICE);
+        const qty = Math.round(total / SMALL_PRICE);
+        const amount = roundCurrency(total / 1.07);
+        const vat = roundCurrency(total - amount);
 
         rows.push({
             dateObj: parseYmd(dateRaw),
@@ -510,7 +514,7 @@ export function writeLawsonBigSheet(ws, config, rows, billDateText) {
         row.getCell(5).value = record.branch_name;
         row.getCell(6).value = record.qty;
         row.getCell(7).value = record.price;
-        if (config.price_includes_vat) {
+        if (priceIncludesVat(config)) {
             row.getCell(8).value = { formula: `ROUND(F${dataStart + i}*G${dataStart + i}/1.07,2)`, result: record.amount };
             row.getCell(9).value = { formula: `ROUND(J${dataStart + i}-H${dataStart + i},2)`, result: record.vat };
             row.getCell(10).value = { formula: `ROUND(F${dataStart + i}*G${dataStart + i},2)`, result: record.total };
@@ -603,7 +607,7 @@ export function writeNarrowSheet(ws, config, rows, combinedSmall, billDateText) 
         row.getCell(5).value = label;
         row.getCell(6).value = record.qty;
         row.getCell(7).value = record.price;
-        if (config.price_includes_vat) {
+        if (priceIncludesVat(config)) {
             row.getCell(8).value = { formula: `ROUND(F${dataStart + i}*G${dataStart + i}/1.07,2)`, result: record.amount };
             row.getCell(9).value = { formula: `ROUND(J${dataStart + i}-H${dataStart + i},2)`, result: record.vat };
             row.getCell(10).value = { formula: `ROUND(F${dataStart + i}*G${dataStart + i},2)`, result: record.total };
@@ -695,7 +699,7 @@ export async function generateBillingWorkbook(bigSourceData, smallSourceData, mo
                     config.product_code,
                     periodStart,
                     periodEnd,
-                    config.price_includes_vat
+                    priceIncludesVat(config)
                 );
             }
         }
