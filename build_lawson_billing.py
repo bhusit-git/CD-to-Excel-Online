@@ -22,6 +22,7 @@ PERIOD_END = "20260430"
 BODY_FONT_SIZE = 18
 SUBTITLE_FONT_SIZE = 20
 TITLE_FONT_SIZE = 22
+LAWSON_BIG_VAT_EXCLUSIVE_START = "20260527"
 THAI_MONTHS = [
     "",
     "มกราคม",
@@ -147,9 +148,16 @@ def load_rows() -> list[dict]:
             continue
 
         cust = lawson_customers[cust_id]
-        total = float(row.get("AMT") or 0)
-        amount = round(total / 1.07, 12)
-        vat = round(total - amount, 12)
+        line_amount = float(row.get("AMT") or 0)
+        price_includes_vat = date_raw < LAWSON_BIG_VAT_EXCLUSIVE_START
+        if price_includes_vat:
+            total = line_amount
+            amount = round(total / 1.07, 12)
+            vat = round(total - amount, 12)
+        else:
+            amount = line_amount
+            vat = round(amount * 0.07, 12)
+            total = round(amount + vat, 12)
         branch_name = clean_branch_name(cust.get("SH_NAME") or cust.get("SHIP_NAME") or cust.get("NAME") or "")
         rows.append(
             {
@@ -162,6 +170,7 @@ def load_rows() -> list[dict]:
                 "amount": amount,
                 "vat": vat,
                 "total": total,
+                "price_includes_vat": price_includes_vat,
             }
         )
 

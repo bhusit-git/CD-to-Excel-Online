@@ -5,6 +5,7 @@ const SMALL_SUMMARY_BILLS = new Set(["69 040870", "69 040871", "69 040872", "69 
 const BODY_FONT_SIZE = 18;
 const SUBTITLE_FONT_SIZE = 20;
 const TITLE_FONT_SIZE = 22;
+const LAWSON_BIG_VAT_EXCLUSIVE_START = "20260527";
 
 const THAI_MONTHS = [
     "",
@@ -238,6 +239,13 @@ function priceIncludesVat(config) {
     return config.price_includes_vat || config.product_code === "06";
 }
 
+function transPriceIncludesVat(config, dateRaw) {
+    if (config.kind === "lawson_big" && config.product_code === "04") {
+        return dateRaw < LAWSON_BIG_VAT_EXCLUSIVE_START;
+    }
+    return priceIncludesVat(config);
+}
+
 export function thaiBahtText(amount) {
     const totalSatang = Math.round((Number(amount) || 0) * 100);
     const baht = Math.floor(totalSatang / 100);
@@ -315,9 +323,10 @@ export function buildTransRows(customersList, transRows, branchIds, productCode,
         const qty = parseFloat(row.QTY || 0);
         const price = parseFloat(row.PRICE || 0);
         const gross = roundCurrency(qty * price);
-        const amount = priceIncludesVat ? roundCurrency(gross / 1.07) : gross;
-        const vat = priceIncludesVat ? roundCurrency(gross - amount) : roundCurrency(amount * 0.07);
-        const total = priceIncludesVat ? gross : roundCurrency(amount + vat);
+        const includesVat = typeof priceIncludesVat === "function" ? priceIncludesVat(dateRaw) : priceIncludesVat;
+        const amount = includesVat ? roundCurrency(gross / 1.07) : gross;
+        const vat = includesVat ? roundCurrency(gross - amount) : roundCurrency(amount * 0.07);
+        const total = includesVat ? gross : roundCurrency(amount + vat);
         const branchName = cleanBranchName(cust.SH_NAME || cust.SHIP_NAME || cust.NAME || "");
 
         rows.push({
@@ -331,6 +340,7 @@ export function buildTransRows(customersList, transRows, branchIds, productCode,
             amount: amount,
             vat: vat,
             total: total,
+            price_includes_vat: includesVat,
             product_name: productCode === "04" ? "หลอดใหญ่" : branchName,
         });
     }
@@ -514,7 +524,7 @@ export function writeLawsonBigSheet(ws, config, rows, billDateText) {
         row.getCell(5).value = record.branch_name;
         row.getCell(6).value = record.qty;
         row.getCell(7).value = record.price;
-        if (priceIncludesVat(config)) {
+        if (record.price_includes_vat) {
             row.getCell(8).value = { formula: `ROUND(F${dataStart + i}*G${dataStart + i}/1.07,2)`, result: record.amount };
             row.getCell(9).value = { formula: `ROUND(J${dataStart + i}-H${dataStart + i},2)`, result: record.vat };
             row.getCell(10).value = { formula: `ROUND(F${dataStart + i}*G${dataStart + i},2)`, result: record.total };
@@ -607,7 +617,7 @@ export function writeNarrowSheet(ws, config, rows, combinedSmall, billDateText) 
         row.getCell(5).value = label;
         row.getCell(6).value = record.qty;
         row.getCell(7).value = record.price;
-        if (priceIncludesVat(config)) {
+        if (record.price_includes_vat) {
             row.getCell(8).value = { formula: `ROUND(F${dataStart + i}*G${dataStart + i}/1.07,2)`, result: record.amount };
             row.getCell(9).value = { formula: `ROUND(J${dataStart + i}-H${dataStart + i},2)`, result: record.vat };
             row.getCell(10).value = { formula: `ROUND(F${dataStart + i}*G${dataStart + i},2)`, result: record.total };
@@ -699,7 +709,7 @@ export async function generateBillingWorkbook(bigSourceData, smallSourceData, mo
                     config.product_code,
                     periodStart,
                     periodEnd,
-                    priceIncludesVat(config)
+                    (dateRaw) => transPriceIncludesVat(config, dateRaw)
                 );
             }
         }

@@ -25,6 +25,7 @@ PERIOD_END = "20260430"
 BODY_FONT_SIZE = 18
 SUBTITLE_FONT_SIZE = 20
 TITLE_FONT_SIZE = 22
+LAWSON_BIG_VAT_EXCLUSIVE_START = "20260527"
 THAI_MONTHS = [
     "",
     "มกราคม",
@@ -453,7 +454,19 @@ def clean_branch_name(raw: str) -> str:
     return raw
 
 
-def build_trans_rows(customers: dict[str, dict], trans_rows: list[dict], branch_ids: list[str] | None, product_code: str) -> list[dict]:
+def trans_price_includes_vat(config: dict | None, date_raw: str) -> bool:
+    if config and config.get("kind") == "lawson_big" and config.get("product_code") == "04":
+        return date_raw < LAWSON_BIG_VAT_EXCLUSIVE_START
+    return True
+
+
+def build_trans_rows(
+    customers: dict[str, dict],
+    trans_rows: list[dict],
+    branch_ids: list[str] | None,
+    product_code: str,
+    config: dict | None = None,
+) -> list[dict]:
     branch_set = set(branch_ids or [])
     rows = []
     for row in trans_rows:
@@ -467,9 +480,16 @@ def build_trans_rows(customers: dict[str, dict], trans_rows: list[dict], branch_
             continue
 
         cust = customers.get(cust_id, {})
-        total = float(row.get("AMT") or 0)
-        amount = round(total / 1.07, 12)
-        vat = round(total - amount, 12)
+        line_amount = float(row.get("AMT") or 0)
+        price_includes_vat = trans_price_includes_vat(config, date_raw)
+        if price_includes_vat:
+            total = line_amount
+            amount = round(total / 1.07, 12)
+            vat = round(total - amount, 12)
+        else:
+            amount = line_amount
+            vat = round(amount * 0.07, 12)
+            total = round(amount + vat, 12)
         branch_name = clean_branch_name(cust.get("SH_NAME") or cust.get("SHIP_NAME") or cust.get("NAME") or "")
         rows.append(
             {
@@ -482,6 +502,7 @@ def build_trans_rows(customers: dict[str, dict], trans_rows: list[dict], branch_
                 "amount": amount,
                 "vat": vat,
                 "total": total,
+                "price_includes_vat": price_includes_vat,
                 "product_name": "หลอดใหญ่" if product_code == "04" else branch_name,
             }
         )
@@ -553,6 +574,14 @@ def write_lawson_big_sheet(ws, config: dict, rows: list[dict]) -> None:
         cell.fill = fill
     data_start = 12
     for row_idx, record in enumerate(rows, start=data_start):
+        if record.get("price_includes_vat", True):
+            amount_formula = f"=ROUND(F{row_idx}*G{row_idx}/1.07,2)"
+            vat_formula = f"=ROUND(J{row_idx}-H{row_idx},2)"
+            total_formula = f"=ROUND(F{row_idx}*G{row_idx},2)"
+        else:
+            amount_formula = f"=ROUND(F{row_idx}*G{row_idx},2)"
+            vat_formula = f"=ROUND(H{row_idx}*0.07,2)"
+            total_formula = f"=ROUND(H{row_idx}+I{row_idx},2)"
         values = [
             record["seq"],
             record["date"],
@@ -561,9 +590,9 @@ def write_lawson_big_sheet(ws, config: dict, rows: list[dict]) -> None:
             record["branch_name"],
             record["qty"],
             record["price"],
-            f"=ROUND(F{row_idx}*G{row_idx}/1.07,2)",
-            f"=ROUND(J{row_idx}-H{row_idx},2)",
-            f"=ROUND(F{row_idx}*G{row_idx},2)",
+            amount_formula,
+            vat_formula,
+            total_formula,
         ]
         for col_idx, value in enumerate(values, start=1):
             cell = ws.cell(row=row_idx, column=col_idx, value=value)
@@ -626,6 +655,14 @@ def write_narrow_sheet(ws, config: dict, rows: list[dict], combined_small: bool)
     data_start = 11
     for row_idx, record in enumerate(rows, start=data_start):
         label = record["branch_name"] if combined_small or config["kind"] == "lawson_small_single" else "หลอดใหญ่"
+        if record.get("price_includes_vat", True):
+            amount_formula = f"=ROUND(F{row_idx}*G{row_idx}/1.07,2)"
+            vat_formula = f"=ROUND(J{row_idx}-H{row_idx},2)"
+            total_formula = f"=ROUND(F{row_idx}*G{row_idx},2)"
+        else:
+            amount_formula = f"=ROUND(F{row_idx}*G{row_idx},2)"
+            vat_formula = f"=ROUND(H{row_idx}*0.07,2)"
+            total_formula = f"=ROUND(H{row_idx}+I{row_idx},2)"
         values = [
             record["seq"],
             record["date"],
@@ -634,9 +671,9 @@ def write_narrow_sheet(ws, config: dict, rows: list[dict], combined_small: bool)
             label,
             record["qty"],
             record["price"],
-            f"=ROUND(F{row_idx}*G{row_idx}/1.07,2)",
-            f"=ROUND(J{row_idx}-H{row_idx},2)",
-            f"=ROUND(F{row_idx}*G{row_idx},2)",
+            amount_formula,
+            vat_formula,
+            total_formula,
         ]
         for col_idx, value in enumerate(values, start=1):
             cell = ws.cell(row=row_idx, column=col_idx, value=value)
@@ -776,7 +813,7 @@ def main() -> None:
         if config["kind"].startswith("lawson_small"):
             rows = build_small_bill_rows(small_customers, small_bill_rows, config["branch_ids"])
         else:
-            rows = build_trans_rows(big_customers, big_trans_rows, config["branch_ids"], config["product_code"])
+            rows = build_trans_rows(big_customers, big_trans_rows, config["branch_ids"], config["product_code"], config)
         if config["kind"] == "lawson_big":
             write_lawson_big_sheet(ws, config, rows)
         elif config["kind"] == "franchise_big":
