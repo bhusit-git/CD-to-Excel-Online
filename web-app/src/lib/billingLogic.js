@@ -35,13 +35,7 @@ const SHEET_CONFIGS = [
         address_line: "เลขที่ 2170 อาคารกรุงเทพทาวเวอร์ ชั้น 3 ถนนเพชรบุรีตัดใหม่ แขวงบางกะปิ เขตห้วยขวาง กรุงเทพมหานคร 10310",
         tax_line: "เลขประจำตัวผู้เสียภาษี 105-55516-6337",
         product_code: "04",
-        branch_ids: [
-            "0829", "1089", "1360", "2880", "3089", "3204", "3208", "3255", "3534",
-            "3548", "3554", "3555", "3572", "3575", "3581", "3639", "3666", "3667",
-            "3674", "3675", "3676", "3709", "3728", "3733", "3735", "3747", "3750",
-            "3754", "3758", "3760", "3766", "3767", "3775", "3793", "3794", "3807",
-            "3814",
-        ],
+        customer_name_includes: ["สหลอว์สัน", "สห ลอว์สัน", "ลอว์สัน"],
         title: "รายการ : น้ำแข็งหลอดใหญ่แพ็ค 1.4 KG (ห่อ)",
     },
     {
@@ -134,7 +128,7 @@ const SHEET_CONFIGS = [
         address_line: "เลขที่ 2170 อาคารกรุงเทพทาวเวอร์ ชั้น 3 ถนนเพชรบุรีตัดใหม่ แขวงบางกะปิ เขตห้วยขวาง กรุงเทพมหานคร 10310",
         tax_line: "เลขประจำตัวผู้เสียภาษี 105-55516-6337",
         product_code: "06",
-        branch_ids: ["3666", "3639", "3760", "3735", "3766"],
+        customer_name_includes: ["สหลอว์สัน", "สห ลอว์สัน", "ลอว์สัน"],
         title: "รายการ : น้ำแข็งหลอดเล็ก",
     },
     {
@@ -246,6 +240,12 @@ function transPriceIncludesVat(config, dateRaw) {
     return priceIncludesVat(config);
 }
 
+function customerMatchesConfig(config, customer) {
+    if (!config.customer_name_includes) return true;
+    const customerText = [customer.NAME, customer.SH_NAME, customer.SHIP_NAME].filter(Boolean).join(" ");
+    return config.customer_name_includes.some(text => customerText.includes(text));
+}
+
 export function thaiBahtText(amount) {
     const totalSatang = Math.round((Number(amount) || 0) * 100);
     const baht = Math.floor(totalSatang / 100);
@@ -305,7 +305,7 @@ export function thaiBahtText(amount) {
     return `${bahtText}${readNumber(satang)}สตางค์`;
 }
 
-export function buildTransRows(customersList, transRows, branchIds, productCode, periodStart, periodEnd, priceIncludesVat = false) {
+export function buildTransRows(customersList, transRows, branchIds, productCode, periodStart, periodEnd, priceIncludesVat = false, customerMatches = null) {
     const customers = {};
     customersList.forEach(c => customers[c.ID] = c);
 
@@ -315,11 +315,12 @@ export function buildTransRows(customersList, transRows, branchIds, productCode,
     for (const row of transRows) {
         const custId = row.CUST_VEND || "";
         if (branchSet.size > 0 && !branchSet.has(custId)) continue;
+        const cust = customers[custId] || {};
+        if (customerMatches && !customerMatches(cust, custId)) continue;
         if (row.PROD_CODE !== productCode) continue;
         const dateRaw = row.DATE || "";
         if (dateRaw < periodStart || dateRaw > periodEnd) continue;
 
-        const cust = customers[custId] || {};
         const qty = parseFloat(row.QTY || 0);
         const price = parseFloat(row.PRICE || 0);
         const gross = roundCurrency(qty * price);
@@ -356,7 +357,7 @@ export function buildTransRows(customersList, transRows, branchIds, productCode,
     return rows.map((r, idx) => ({ ...r, seq: idx + 1, dateStr: `${String(r.dateObj.getDate()).padStart(2, '0')}/${String(r.dateObj.getMonth()+1).padStart(2, '0')}/${r.dateObj.getFullYear()}` }));
 }
 
-export function buildSmallBillRows(customersList, billRows, branchIds, periodStart, periodEnd) {
+export function buildSmallBillRows(customersList, billRows, branchIds, periodStart, periodEnd, customerMatches = null) {
     const customers = {};
     customersList.forEach(c => customers[c.ID] = c);
 
@@ -366,6 +367,8 @@ export function buildSmallBillRows(customersList, billRows, branchIds, periodSta
     for (const row of billRows) {
         const custId = row.CUST_VEND || "";
         if (branchSet.size > 0 && !branchSet.has(custId)) continue;
+        const cust = customers[custId] || {};
+        if (customerMatches && !customerMatches(cust, custId)) continue;
         const dateRaw = row.REF_DATE || "";
         if (dateRaw < periodStart || dateRaw > periodEnd) continue;
         if (SMALL_SUMMARY_BILLS.has(row.NO || "")) continue;
@@ -373,7 +376,6 @@ export function buildSmallBillRows(customersList, billRows, branchIds, periodSta
         const total = roundCurrency(parseFloat(row.BAL_AMT || 0) + parseFloat(row.VAT_AMT || 0));
         if (total <= 0) continue;
 
-        const cust = customers[custId] || {};
         const branchName = cleanBranchName(cust.SH_NAME || cust.SHIP_NAME || cust.NAME || "");
         const qty = Math.round(total / SMALL_PRICE);
         const amount = roundCurrency(total / 1.07);
@@ -576,7 +578,6 @@ export function writeLawsonBigSheet(ws, config, rows, billDateText) {
     ws.getCell(footerRow + 1, 7).value = "วันที่รับวางบิล………………………..";
     ws.getCell(footerRow, 10).value = "วันที่วางบิล.................................";
     ws.getCell(footerRow + 1, 10).value = "วันที่จ่ายชำระ.............................";
-    ws.pageSetup.printArea = `A1:J${footerRow + 1}`;
     
     // Add missing fonts for footer
     [footerRow, footerRow+1].forEach(r => {
@@ -667,7 +668,6 @@ export function writeNarrowSheet(ws, config, rows, combinedSmall, billDateText) 
     ws.getCell(footerRow + 2, 1).value = "วันที่วางบิล.................................";
     ws.getCell(footerRow + 2, 7).value = "วันที่รับวางบิล .................................................";
     ws.getCell(footerRow + 4, 1).value = "วันที่จ่ายชำระ.............................";
-    ws.pageSetup.printArea = `A1:J${footerRow + 4}`;
     
     // Add missing fonts for footer
     [footerRow, footerRow+2, footerRow+4].forEach(r => {
@@ -698,7 +698,14 @@ export async function generateBillingWorkbook(bigSourceData, smallSourceData, mo
         
         if (config.kind.startsWith("lawson_small")) {
             if (smallSourceData) {
-                rows = buildSmallBillRows(smallSourceData.mcust, smallSourceData.abillno, config.branch_ids, periodStart, periodEnd);
+                rows = buildSmallBillRows(
+                    smallSourceData.mcust,
+                    smallSourceData.abillno,
+                    config.branch_ids,
+                    periodStart,
+                    periodEnd,
+                    (customer) => customerMatchesConfig(config, customer)
+                );
             }
         } else {
             if (bigSourceData) {
@@ -709,7 +716,8 @@ export async function generateBillingWorkbook(bigSourceData, smallSourceData, mo
                     config.product_code,
                     periodStart,
                     periodEnd,
-                    (dateRaw) => transPriceIncludesVat(config, dateRaw)
+                    (dateRaw) => transPriceIncludesVat(config, dateRaw),
+                    (customer) => customerMatchesConfig(config, customer)
                 );
             }
         }

@@ -52,13 +52,7 @@ SHEET_CONFIGS = [
         "address_line": "เลขที่ 2170 อาคารกรุงเทพทาวเวอร์ ชั้น 3 ถนนเพชรบุรีตัดใหม่ แขวงบางกะปิ เขตห้วยขวาง กรุงเทพมหานคร 10310",
         "tax_line": "เลขประจำตัวผู้เสียภาษี 105-55516-6337",
         "product_code": "04",
-        "branch_ids": [
-            "0829", "1089", "1360", "2880", "3089", "3204", "3208", "3255", "3534",
-            "3548", "3554", "3555", "3572", "3575", "3581", "3639", "3666", "3667",
-            "3674", "3675", "3676", "3709", "3728", "3733", "3735", "3747", "3750",
-            "3754", "3758", "3760", "3766", "3767", "3775", "3793", "3794", "3807",
-            "3814",
-        ],
+        "customer_name_includes": ["สหลอว์สัน", "สห ลอว์สัน", "ลอว์สัน"],
         "title": "รายการ : น้ำแข็งหลอดใหญ่แพ็ค 1.4 KG (ห่อ)",
     },
     {
@@ -139,7 +133,7 @@ SHEET_CONFIGS = [
         "address_line": "เลขที่ 2170 อาคารกรุงเทพทาวเวอร์ ชั้น 3 ถนนเพชรบุรีตัดใหม่ แขวงบางกะปิ เขตห้วยขวาง กรุงเทพมหานคร 10310",
         "tax_line": "เลขประจำตัวผู้เสียภาษี 105-55516-6337",
         "product_code": "06",
-        "branch_ids": ["3666", "3639", "3760", "3735", "3766"],
+        "customer_name_includes": ["สหลอว์สัน", "สห ลอว์สัน", "ลอว์สัน"],
         "title": "รายการ : น้ำแข็งหลอดเล็ก",
     },
     {
@@ -460,6 +454,16 @@ def trans_price_includes_vat(config: dict | None, date_raw: str) -> bool:
     return True
 
 
+def customer_matches_config(config: dict | None, customer: dict) -> bool:
+    if not config or not config.get("customer_name_includes"):
+        return True
+    customer_text = " ".join(
+        str(customer.get(field, ""))
+        for field in ("NAME", "SH_NAME", "SHIP_NAME")
+    )
+    return any(text in customer_text for text in config["customer_name_includes"])
+
+
 def build_trans_rows(
     customers: dict[str, dict],
     trans_rows: list[dict],
@@ -473,13 +477,15 @@ def build_trans_rows(
         cust_id = row.get("CUST_VEND", "")
         if branch_set and cust_id not in branch_set:
             continue
+        cust = customers.get(cust_id, {})
+        if not customer_matches_config(config, cust):
+            continue
         if row.get("PROD_CODE") != product_code:
             continue
         date_raw = row.get("DATE", "")
         if not (PERIOD_START <= date_raw <= PERIOD_END):
             continue
 
-        cust = customers.get(cust_id, {})
         line_amount = float(row.get("AMT") or 0)
         price_includes_vat = trans_price_includes_vat(config, date_raw)
         if price_includes_vat:
@@ -512,12 +518,15 @@ def build_trans_rows(
     return rows
 
 
-def build_small_bill_rows(customers: dict[str, dict], bill_rows: list[dict], branch_ids: list[str] | None) -> list[dict]:
+def build_small_bill_rows(customers: dict[str, dict], bill_rows: list[dict], branch_ids: list[str] | None, config: dict | None = None) -> list[dict]:
     branch_set = set(branch_ids or [])
     rows = []
     for row in bill_rows:
         cust_id = row.get("CUST_VEND", "")
         if branch_set and cust_id not in branch_set:
+            continue
+        cust = customers.get(cust_id, {})
+        if not customer_matches_config(config, cust):
             continue
         date_raw = row.get("REF_DATE", "")
         if not (PERIOD_START <= date_raw <= PERIOD_END):
@@ -531,7 +540,6 @@ def build_small_bill_rows(customers: dict[str, dict], bill_rows: list[dict], bra
         if total <= 0:
             continue
 
-        cust = customers.get(cust_id, {})
         branch_name = clean_branch_name(cust.get("SH_NAME") or cust.get("SHIP_NAME") or cust.get("NAME") or "")
         qty = int(round(total / SMALL_PRICE))
         rows.append(
@@ -811,9 +819,9 @@ def main() -> None:
     for config in selected_configs:
         ws = wb.create_sheet(config["name"])
         if config["kind"].startswith("lawson_small"):
-            rows = build_small_bill_rows(small_customers, small_bill_rows, config["branch_ids"])
+            rows = build_small_bill_rows(small_customers, small_bill_rows, config.get("branch_ids"), config)
         else:
-            rows = build_trans_rows(big_customers, big_trans_rows, config["branch_ids"], config["product_code"], config)
+            rows = build_trans_rows(big_customers, big_trans_rows, config.get("branch_ids"), config["product_code"], config)
         if config["kind"] == "lawson_big":
             write_lawson_big_sheet(ws, config, rows)
         elif config["kind"] == "franchise_big":
