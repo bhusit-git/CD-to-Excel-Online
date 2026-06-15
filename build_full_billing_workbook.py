@@ -464,6 +464,37 @@ def customer_matches_config(config: dict | None, customer: dict) -> bool:
     return any(text in customer_text for text in config["customer_name_includes"])
 
 
+def format_customer_address(customer: dict) -> str:
+    address = str(customer.get("SH_ADDRESS") or customer.get("ADDRESS") or "").strip()
+    address = re.sub(r"^ที่อยู่\s*:?\s*", "", address)
+    parts = [
+        address,
+        str(customer.get("SH_TAMBON") or customer.get("TAMBON") or "").strip(),
+        str(customer.get("SH_AMPHUR") or customer.get("AMPHUR") or "").strip(),
+        str(customer.get("SH_CITY") or customer.get("CITY") or "").strip(),
+        str(customer.get("SH_ZIP") or customer.get("ZIPCODE") or "").strip(),
+    ]
+    parts = [part for part in parts if part]
+    return f"ที่อยู่ : {' '.join(parts)}" if parts else ""
+
+
+def format_customer_tax_line(customer: dict) -> str:
+    tax_id = str(customer.get("ID_1") or customer.get("TAX_ID") or "").strip()
+    return f"เลขประจำผู้เสียภาษี : {tax_id}" if tax_id else ""
+
+
+def resolve_sheet_config(config: dict, customers: dict[str, dict]) -> dict:
+    resolved = dict(config)
+    branch_ids = resolved.get("branch_ids") or []
+    customer = next((customers.get(branch_id, {}) for branch_id in branch_ids if customers.get(branch_id)), {})
+    if customer:
+        if not resolved.get("address_line"):
+            resolved["address_line"] = format_customer_address(customer)
+        if not resolved.get("tax_line"):
+            resolved["tax_line"] = format_customer_tax_line(customer)
+    return resolved
+
+
 def build_trans_rows(
     customers: dict[str, dict],
     trans_rows: list[dict],
@@ -817,20 +848,22 @@ def main() -> None:
         selected_configs = SHEET_CONFIGS
 
     for config in selected_configs:
-        ws = wb.create_sheet(config["name"])
-        if config["kind"].startswith("lawson_small"):
-            rows = build_small_bill_rows(small_customers, small_bill_rows, config.get("branch_ids"), config)
+        customer_source = small_customers if config["kind"].startswith("lawson_small") else big_customers
+        resolved_config = resolve_sheet_config(config, customer_source)
+        ws = wb.create_sheet(resolved_config["name"])
+        if resolved_config["kind"].startswith("lawson_small"):
+            rows = build_small_bill_rows(small_customers, small_bill_rows, resolved_config.get("branch_ids"), resolved_config)
         else:
-            rows = build_trans_rows(big_customers, big_trans_rows, config.get("branch_ids"), config["product_code"], config)
-        if config["kind"] == "lawson_big":
-            write_lawson_big_sheet(ws, config, rows)
-        elif config["kind"] == "franchise_big":
-            write_narrow_sheet(ws, config, rows, combined_small=False)
-        elif config["kind"] == "lawson_small_combined":
-            write_narrow_sheet(ws, config, rows, combined_small=True)
+            rows = build_trans_rows(big_customers, big_trans_rows, resolved_config.get("branch_ids"), resolved_config["product_code"], resolved_config)
+        if resolved_config["kind"] == "lawson_big":
+            write_lawson_big_sheet(ws, resolved_config, rows)
+        elif resolved_config["kind"] == "franchise_big":
+            write_narrow_sheet(ws, resolved_config, rows, combined_small=False)
+        elif resolved_config["kind"] == "lawson_small_combined":
+            write_narrow_sheet(ws, resolved_config, rows, combined_small=True)
         else:
-            write_narrow_sheet(ws, config, rows, combined_small=True)
-        print(config["name"], len(rows), round(sum(r["total"] for r in rows), 2))
+            write_narrow_sheet(ws, resolved_config, rows, combined_small=True)
+        print(resolved_config["name"], len(rows), round(sum(r["total"] for r in rows), 2))
 
     OUTPUT_XLSX.parent.mkdir(parents=True, exist_ok=True)
     wb.save(OUTPUT_XLSX)

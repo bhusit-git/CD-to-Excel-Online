@@ -246,6 +246,42 @@ function customerMatchesConfig(config, customer) {
     return config.customer_name_includes.some(text => customerText.includes(text));
 }
 
+function formatCustomerAddress(customer) {
+    const address = String(customer.SH_ADDRESS || customer.ADDRESS || "").trim().replace(/^ที่อยู่\s*:?\s*/, "");
+    const parts = [
+        address,
+        String(customer.SH_TAMBON || customer.TAMBON || "").trim(),
+        String(customer.SH_AMPHUR || customer.AMPHUR || "").trim(),
+        String(customer.SH_CITY || customer.CITY || "").trim(),
+        String(customer.SH_ZIP || customer.ZIPCODE || "").trim(),
+    ].filter(Boolean);
+    return parts.length > 0 ? `ที่อยู่ : ${parts.join(" ")}` : "";
+}
+
+function formatCustomerTaxLine(customer) {
+    const taxId = String(customer.ID_1 || customer.TAX_ID || "").trim();
+    return taxId ? `เลขประจำผู้เสียภาษี : ${taxId}` : "";
+}
+
+function resolveSheetConfig(config, customersList) {
+    const customers = {};
+    customersList.forEach(customer => {
+        customers[customer.ID] = customer;
+    });
+    const resolved = { ...config };
+    const branchIds = resolved.branch_ids || [];
+    const customer = branchIds.map(branchId => customers[branchId]).find(Boolean);
+    if (customer) {
+        if (!resolved.address_line) {
+            resolved.address_line = formatCustomerAddress(customer);
+        }
+        if (!resolved.tax_line) {
+            resolved.tax_line = formatCustomerTaxLine(customer);
+        }
+    }
+    return resolved;
+}
+
 export function thaiBahtText(amount) {
     const totalSatang = Math.round((Number(amount) || 0) * 100);
     const baht = Math.floor(totalSatang / 100);
@@ -693,18 +729,22 @@ export async function generateBillingWorkbook(bigSourceData, smallSourceData, mo
     wb.created = new Date();
 
     for (const config of SHEET_CONFIGS) {
-        const ws = wb.addWorksheet(config.name);
+        const customerSource = config.kind.startsWith("lawson_small")
+            ? smallSourceData?.mcust || []
+            : bigSourceData?.mcust || [];
+        const resolvedConfig = resolveSheetConfig(config, customerSource);
+        const ws = wb.addWorksheet(resolvedConfig.name);
         let rows = [];
         
-        if (config.kind.startsWith("lawson_small")) {
+        if (resolvedConfig.kind.startsWith("lawson_small")) {
             if (smallSourceData) {
                 rows = buildSmallBillRows(
                     smallSourceData.mcust,
                     smallSourceData.abillno,
-                    config.branch_ids,
+                    resolvedConfig.branch_ids,
                     periodStart,
                     periodEnd,
-                    (customer) => customerMatchesConfig(config, customer)
+                    (customer) => customerMatchesConfig(resolvedConfig, customer)
                 );
             }
         } else {
@@ -712,24 +752,24 @@ export async function generateBillingWorkbook(bigSourceData, smallSourceData, mo
                 rows = buildTransRows(
                     bigSourceData.mcust,
                     bigSourceData.atrans,
-                    config.branch_ids,
-                    config.product_code,
+                    resolvedConfig.branch_ids,
+                    resolvedConfig.product_code,
                     periodStart,
                     periodEnd,
-                    (dateRaw) => transPriceIncludesVat(config, dateRaw),
-                    (customer) => customerMatchesConfig(config, customer)
+                    (dateRaw) => transPriceIncludesVat(resolvedConfig, dateRaw),
+                    (customer) => customerMatchesConfig(resolvedConfig, customer)
                 );
             }
         }
 
-        if (config.kind === "lawson_big") {
-            writeLawsonBigSheet(ws, config, rows, billDateText);
-        } else if (config.kind === "franchise_big" || config.kind === "franchise_small") {
-            writeNarrowSheet(ws, config, rows, false, billDateText);
-        } else if (config.kind === "lawson_small_combined") {
-            writeNarrowSheet(ws, config, rows, true, billDateText);
+        if (resolvedConfig.kind === "lawson_big") {
+            writeLawsonBigSheet(ws, resolvedConfig, rows, billDateText);
+        } else if (resolvedConfig.kind === "franchise_big" || resolvedConfig.kind === "franchise_small") {
+            writeNarrowSheet(ws, resolvedConfig, rows, false, billDateText);
+        } else if (resolvedConfig.kind === "lawson_small_combined") {
+            writeNarrowSheet(ws, resolvedConfig, rows, true, billDateText);
         } else {
-            writeNarrowSheet(ws, config, rows, true, billDateText);
+            writeNarrowSheet(ws, resolvedConfig, rows, true, billDateText);
         }
     }
 
