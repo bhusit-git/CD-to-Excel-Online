@@ -20,6 +20,33 @@ const Card = ({ children, className = '' }) => (
   </div>
 );
 
+const OperationStatus = ({ error, success, successText }) => (
+  <AnimatePresence>
+    {error && (
+      <motion.div
+        initial={{ opacity: 0, height: 0 }}
+        animate={{ opacity: 1, height: 'auto' }}
+        exit={{ opacity: 0, height: 0 }}
+        className="mt-4 p-3 bg-red-50 text-red-700 text-sm rounded-md border border-red-100 flex items-start gap-2"
+      >
+        <AlertCircle className="shrink-0 mt-0.5" size={16} />
+        <p className="break-words">{error}</p>
+      </motion.div>
+    )}
+    {success && (
+      <motion.div
+        initial={{ opacity: 0, height: 0 }}
+        animate={{ opacity: 1, height: 'auto' }}
+        exit={{ opacity: 0, height: 0 }}
+        className="mt-4 p-3 bg-green-50 text-green-700 text-sm rounded-md border border-green-100 flex items-start gap-2"
+      >
+        <CheckCircle2 className="shrink-0 mt-0.5" size={16} />
+        <p>{successText}</p>
+      </motion.div>
+    )}
+  </AnimatePresence>
+);
+
 const FolderUploader = ({ label, description, onFilesSelected, selectedFiles, icon: Icon = Folder }) => {
   const fileInputRef = useRef(null);
 
@@ -95,14 +122,16 @@ function App() {
   const [checkStartDate, setCheckStartDate] = useState(`${currentMonth}-01`);
   const [checkEndDate, setCheckEndDate] = useState(today.toISOString().split('T')[0]);
   
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [error, setError] = useState(null);
-  const [success, setSuccess] = useState(false);
+  const [processingAction, setProcessingAction] = useState(null);
+  const [billingError, setBillingError] = useState(null);
+  const [billingSuccess, setBillingSuccess] = useState(false);
+  const [checkError, setCheckError] = useState(null);
+  const [checkSuccess, setCheckSuccess] = useState(false);
 
   const handleGenerate = async () => {
-    setIsProcessing(true);
-    setError(null);
-    setSuccess(false);
+    setProcessingAction('billing');
+    setBillingError(null);
+    setBillingSuccess(false);
     
     try {
       // Small delay to allow UI to update to loading state
@@ -145,19 +174,19 @@ function App() {
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
       
-      setSuccess(true);
+      setBillingSuccess(true);
     } catch (err) {
       console.error(err);
-      setError(err.message || 'เกิดข้อผิดพลาดในการสร้างไฟล์ Excel');
+      setBillingError(err.message || 'เกิดข้อผิดพลาดในการสร้างไฟล์ Excel');
     } finally {
-      setIsProcessing(false);
+      setProcessingAction(null);
     }
   };
 
   const handleBillCheck = async () => {
-    setIsProcessing(true);
-    setError(null);
-    setSuccess(false);
+    setProcessingAction('check');
+    setCheckError(null);
+    setCheckSuccess(false);
 
     try {
       await new Promise(r => setTimeout(r, 100));
@@ -186,12 +215,12 @@ function App() {
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
-      setSuccess(true);
+      setCheckSuccess(true);
     } catch (err) {
       console.error(err);
-      setError(err.message || 'เกิดข้อผิดพลาดในการสร้างรายงานตรวจสอบบิล');
+      setCheckError(err.message || 'เกิดข้อผิดพลาดในการสร้างรายงานตรวจสอบบิล');
     } finally {
-      setIsProcessing(false);
+      setProcessingAction(null);
     }
   };
 
@@ -291,13 +320,13 @@ function App() {
                 
                 <button
                   onClick={handleGenerate}
-                  disabled={!isReady || isProcessing}
+                  disabled={!isReady || processingAction}
                   className={`w-full flex items-center justify-center gap-2 py-3 px-4 rounded-lg font-medium transition-all shadow-sm
-                    ${isReady && !isProcessing
+                    ${isReady && !processingAction
                       ? 'bg-blue-600 hover:bg-blue-700 text-white hover:shadow-md' 
                       : 'bg-slate-100 text-slate-400 cursor-not-allowed'}`}
                 >
-                  {isProcessing ? (
+                  {processingAction === 'billing' ? (
                     <>
                       <Loader2 className="animate-spin" size={20} />
                       กำลังประมวลผล...
@@ -310,31 +339,11 @@ function App() {
                   )}
                 </button>
 
-                <AnimatePresence>
-                  {error && (
-                    <motion.div 
-                      initial={{ opacity: 0, height: 0 }}
-                      animate={{ opacity: 1, height: 'auto' }}
-                      exit={{ opacity: 0, height: 0 }}
-                      className="mt-4 p-3 bg-red-50 text-red-700 text-sm rounded-md border border-red-100 flex items-start gap-2"
-                    >
-                      <AlertCircle className="shrink-0 mt-0.5" size={16} />
-                      <p className="break-words">{error}</p>
-                    </motion.div>
-                  )}
-                  
-                  {success && (
-                    <motion.div 
-                      initial={{ opacity: 0, height: 0 }}
-                      animate={{ opacity: 1, height: 'auto' }}
-                      exit={{ opacity: 0, height: 0 }}
-                      className="mt-4 p-3 bg-green-50 text-green-700 text-sm rounded-md border border-green-100 flex items-start gap-2"
-                    >
-                      <CheckCircle2 className="shrink-0 mt-0.5" size={16} />
-                      <p>สร้างไฟล์ Excel สำเร็จแล้ว!</p>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
+                <OperationStatus
+                  error={billingError}
+                  success={billingSuccess}
+                  successText="สร้างไฟล์วางบิลสำเร็จแล้ว!"
+                />
 
               </Card>
             </motion.div>
@@ -357,11 +366,16 @@ function App() {
                 </div>
                 <button
                   onClick={handleBillCheck}
-                  disabled={!isCheckReady || isProcessing}
-                  className={`w-full flex items-center justify-center gap-2 py-3 px-4 rounded-lg font-medium transition-all shadow-sm ${isCheckReady && !isProcessing ? 'bg-emerald-600 hover:bg-emerald-700 text-white hover:shadow-md' : 'bg-slate-100 text-slate-400 cursor-not-allowed'}`}
+                  disabled={!isCheckReady || processingAction}
+                  className={`w-full flex items-center justify-center gap-2 py-3 px-4 rounded-lg font-medium transition-all shadow-sm ${isCheckReady && !processingAction ? 'bg-emerald-600 hover:bg-emerald-700 text-white hover:shadow-md' : 'bg-slate-100 text-slate-400 cursor-not-allowed'}`}
                 >
-                  {isProcessing ? <><Loader2 className="animate-spin" size={20} />กำลังประมวลผล...</> : <><Download size={20} />ดาวน์โหลดรายงานตรวจสอบ</>}
+                  {processingAction === 'check' ? <><Loader2 className="animate-spin" size={20} />กำลังประมวลผล...</> : <><Download size={20} />ดาวน์โหลดรายงานตรวจสอบ</>}
                 </button>
+                <OperationStatus
+                  error={checkError}
+                  success={checkSuccess}
+                  successText="สร้างรายงานตรวจสอบบิลสำเร็จแล้ว!"
+                />
               </Card>
             </motion.div>
 
