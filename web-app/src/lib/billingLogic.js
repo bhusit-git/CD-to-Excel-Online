@@ -786,15 +786,15 @@ function writeCheckReportSheet(ws, title, rows) {
     ws.views = [{ showGridLines: false }];
     ws.columns = [
         { width: 8 }, { width: 14 }, { width: 18 }, { width: 14 }, { width: 32 },
-        { width: 14 }, { width: 14 }, { width: 16 }, { width: 16 },
+        { width: 14 }, { width: 14 }, { width: 16 }, { width: 16 }, { width: 16 },
     ];
 
-    ws.mergeCells('A1:I1');
+    ws.mergeCells('A1:J1');
     ws.getCell('A1').value = title;
     ws.getCell('A1').font = { name: 'Angsana New', size: TITLE_FONT_SIZE, bold: true };
     ws.getCell('A1').alignment = { horizontal: 'center' };
 
-    const headers = ['ลำดับ', 'วันที่', 'เลขที่บิล', 'เลขสาขา', 'ชื่อสาขา', 'จำนวน', 'ราคา', 'ก่อนภาษี', 'ยอดรวม'];
+    const headers = ['ลำดับ', 'วันที่', 'เลขที่บิล', 'เลขสาขา', 'ชื่อสาขา', 'จำนวน', 'ราคา', 'ก่อนภาษี', 'ภาษีมูลค่าเพิ่ม', 'ยอดรวม'];
     headers.forEach((header, index) => {
         const cell = ws.getCell(3, index + 1);
         cell.value = header;
@@ -808,7 +808,7 @@ function writeCheckReportSheet(ws, title, rows) {
         const rowNumber = index + 4;
         const values = [
             index + 1, checkReportDate(record.date), record.bill_no, record.branch,
-            record.branch_name, record.qty, record.price, record.amount, record.total,
+            record.branch_name, record.qty, record.price, record.amount, record.vat, record.total,
         ];
         values.forEach((value, column) => {
             const cell = ws.getCell(rowNumber, column + 1);
@@ -824,12 +824,12 @@ function writeCheckReportSheet(ws, title, rows) {
     const totalRow = rows.length + 4;
     ws.getCell(totalRow, 1).value = 'รวม';
     ws.mergeCells(totalRow, 1, totalRow, 5);
-    ['F', 'H', 'I'].forEach(column => {
+    ['F', 'H', 'I', 'J'].forEach(column => {
         ws.getCell(`${column}${totalRow}`).value = rows.length
             ? { formula: `SUM(${column}4:${column}${totalRow - 1})` }
             : 0;
     });
-    for (let column = 1; column <= 9; column++) {
+    for (let column = 1; column <= 10; column++) {
         const cell = ws.getCell(totalRow, column);
         cell.font = { name: 'Angsana New', size: BODY_FONT_SIZE, bold: true };
         cell.border = borderStyle;
@@ -868,6 +868,7 @@ export async function generateBillCheckWorkbook(bigSourceData, smallSourceData, 
                 qty,
                 price,
                 amount: vatIncluded ? roundCurrency(gross / 1.07) : gross,
+                vat: vatIncluded ? roundCurrency(gross - roundCurrency(gross / 1.07)) : roundCurrency(gross * 0.07),
                 total: vatIncluded ? gross : roundCurrency(gross * 1.07),
             };
         })
@@ -887,6 +888,7 @@ export async function generateBillCheckWorkbook(bigSourceData, smallSourceData, 
                 qty: Math.round(total / SMALL_PRICE),
                 price: SMALL_PRICE,
                 amount: roundCurrency(total / 1.07),
+                vat: roundCurrency(total - roundCurrency(total / 1.07)),
                 total,
             };
         })
