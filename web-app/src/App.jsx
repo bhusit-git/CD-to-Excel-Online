@@ -9,7 +9,7 @@ import {
   Loader2,
   Download
 } from 'lucide-react';
-import { generateBillingWorkbook } from './lib/billingLogic';
+import { generateBillingWorkbook, generateBillCheckWorkbook } from './lib/billingLogic';
 import { parseDbf } from './lib/dbfParser';
 import './App.css';
 
@@ -92,6 +92,8 @@ function App() {
   
   const [billingMonth, setBillingMonth] = useState(currentMonth);
   const [billingDate, setBillingDate] = useState(today.toISOString().split('T')[0]);
+  const [checkStartDate, setCheckStartDate] = useState(`${currentMonth}-01`);
+  const [checkEndDate, setCheckEndDate] = useState(today.toISOString().split('T')[0]);
   
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState(null);
@@ -152,7 +154,49 @@ function App() {
     }
   };
 
+  const handleBillCheck = async () => {
+    setIsProcessing(true);
+    setError(null);
+    setSuccess(false);
+
+    try {
+      await new Promise(r => setTimeout(r, 100));
+      const loadDbfFile = async (files, fileName) => {
+        const file = files.find(f => f.name.toUpperCase() === fileName.toUpperCase());
+        if (!file) throw new Error(`ไม่พบไฟล์ ${fileName} ในโฟลเดอร์ที่เลือก`);
+        return parseDbf(await file.arrayBuffer());
+      };
+      const workbook = await generateBillCheckWorkbook(
+        {
+          mcust: await loadDbfFile(bigSourceFiles, 'MCUST.DBF'),
+          atrans: await loadDbfFile(bigSourceFiles, 'ATRANS.DBF'),
+        },
+        {
+          mcust: await loadDbfFile(smallSourceFiles, 'MCUST.DBF'),
+          abillno: await loadDbfFile(smallSourceFiles, 'ABILLNO.DBF'),
+        },
+        checkStartDate,
+        checkEndDate,
+      );
+      const url = URL.createObjectURL(workbook);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `Lawson_Bill_Check_${checkStartDate.replaceAll('-', '')}-${checkEndDate.replaceAll('-', '')}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      setSuccess(true);
+    } catch (err) {
+      console.error(err);
+      setError(err.message || 'เกิดข้อผิดพลาดในการสร้างรายงานตรวจสอบบิล');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
   const isReady = bigSourceFiles.length > 0 && smallSourceFiles.length > 0 && billingMonth && billingDate;
+  const isCheckReady = bigSourceFiles.length > 0 && smallSourceFiles.length > 0 && checkStartDate && checkEndDate && checkStartDate <= checkEndDate;
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800 font-sans pb-12">
@@ -292,6 +336,32 @@ function App() {
                   )}
                 </AnimatePresence>
 
+              </Card>
+            </motion.div>
+
+            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.5 }}>
+              <Card className="p-6">
+                <h3 className="font-semibold text-slate-800 mb-2 flex items-center gap-2">
+                  <Calendar size={18} className="text-emerald-600" /> ตรวจสอบบิล
+                </h3>
+                <p className="text-sm text-slate-500 mb-4">รวมทุกสาขา เรียงตามวันที่ และแยกเป็นหลอดใหญ่/หลอดเล็ก</p>
+                <div className="space-y-3 mb-4">
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">ตั้งแต่วันที่</label>
+                    <input type="date" value={checkStartDate} onChange={(e) => setCheckStartDate(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 sm:text-sm" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">ถึงวันที่</label>
+                    <input type="date" value={checkEndDate} onChange={(e) => setCheckEndDate(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 sm:text-sm" />
+                  </div>
+                </div>
+                <button
+                  onClick={handleBillCheck}
+                  disabled={!isCheckReady || isProcessing}
+                  className={`w-full flex items-center justify-center gap-2 py-3 px-4 rounded-lg font-medium transition-all shadow-sm ${isCheckReady && !isProcessing ? 'bg-emerald-600 hover:bg-emerald-700 text-white hover:shadow-md' : 'bg-slate-100 text-slate-400 cursor-not-allowed'}`}
+                >
+                  {isProcessing ? <><Loader2 className="animate-spin" size={20} />กำลังประมวลผล...</> : <><Download size={20} />ดาวน์โหลดรายงานตรวจสอบ</>}
+                </button>
               </Card>
             </motion.div>
 
