@@ -776,3 +776,129 @@ export async function generateBillingWorkbook(bigSourceData, smallSourceData, mo
     const buffer = await wb.xlsx.writeBuffer();
     return new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
 }
+
+function checkReportDate(raw) {
+    const date = parseYmd(raw);
+    return `${String(date.getDate()).padStart(2, '0')}/${String(date.getMonth() + 1).padStart(2, '0')}/${date.getFullYear()}`;
+}
+
+function writeCheckReportSheet(ws, title, rows) {
+    ws.views = [{ showGridLines: false }];
+    ws.columns = [
+        { width: 8 }, { width: 14 }, { width: 18 }, { width: 14 }, { width: 32 },
+        { width: 14 }, { width: 14 }, { width: 16 }, { width: 16 },
+    ];
+
+    ws.mergeCells('A1:I1');
+    ws.getCell('A1').value = title;
+    ws.getCell('A1').font = { name: 'Angsana New', size: TITLE_FONT_SIZE, bold: true };
+    ws.getCell('A1').alignment = { horizontal: 'center' };
+
+    const headers = ['ลำดับ', 'วันที่', 'เลขที่บิล', 'เลขสาขา', 'ชื่อสาขา', 'จำนวน', 'ราคา', 'ก่อนภาษี', 'ยอดรวม'];
+    headers.forEach((header, index) => {
+        const cell = ws.getCell(3, index + 1);
+        cell.value = header;
+        cell.font = { name: 'Angsana New', size: BODY_FONT_SIZE, bold: true };
+        cell.alignment = { horizontal: 'center', vertical: 'middle' };
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD9EAD3' } };
+        cell.border = borderStyle;
+    });
+
+    rows.forEach((record, index) => {
+        const rowNumber = index + 4;
+        const values = [
+            index + 1, checkReportDate(record.date), record.bill_no, record.branch,
+            record.branch_name, record.qty, record.price, record.amount, record.total,
+        ];
+        values.forEach((value, column) => {
+            const cell = ws.getCell(rowNumber, column + 1);
+            cell.value = value;
+            cell.font = { name: 'Angsana New', size: BODY_FONT_SIZE };
+            cell.border = borderStyle;
+            cell.alignment = { horizontal: column <= 3 || column === 5 ? 'center' : (column === 4 ? 'left' : 'right'), vertical: 'middle' };
+            if (column === 5) cell.numFmt = '0';
+            if (column >= 6) cell.numFmt = '#,##0.00';
+        });
+    });
+
+    const totalRow = rows.length + 4;
+    ws.getCell(totalRow, 1).value = 'รวม';
+    ws.mergeCells(totalRow, 1, totalRow, 5);
+    ['F', 'H', 'I'].forEach(column => {
+        ws.getCell(`${column}${totalRow}`).value = rows.length
+            ? { formula: `SUM(${column}4:${column}${totalRow - 1})` }
+            : 0;
+    });
+    for (let column = 1; column <= 9; column++) {
+        const cell = ws.getCell(totalRow, column);
+        cell.font = { name: 'Angsana New', size: BODY_FONT_SIZE, bold: true };
+        cell.border = borderStyle;
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF3F4F6' } };
+        if (column >= 6) cell.numFmt = column === 6 ? '0' : '#,##0.00';
+    }
+}
+
+// Creates a source-level report: every branch is included, but rows are only separated by ice size.
+export async function generateBillCheckWorkbook(bigSourceData, smallSourceData, startDate, endDate) {
+    const periodStart = String(startDate || '').replace(/-/g, '');
+    const periodEnd = String(endDate || '').replace(/-/g, '');
+    if (!/^\d{8}$/.test(periodStart) || !/^\d{8}$/.test(periodEnd) || periodStart > periodEnd) {
+        throw new Error('กรุณาเลือกช่วงวันที่ให้ถูกต้อง');
+    }
+
+    const bigCustomers = Object.fromEntries((bigSourceData?.mcust || []).map(customer => [customer.ID, customer]));
+    const smallCustomers = Object.fromEntries((smallSourceData?.mcust || []).map(customer => [customer.ID, customer]));
+    const lawsonBigConfig = SHEET_CONFIGS.find(config => config.kind === 'lawson_big');
+
+    const bigRows = (bigSourceData?.atrans || [])
+        .filter(row => row.PROD_CODE === '04' && row.DATE >= periodStart && row.DATE <= periodEnd)
+        .map(row => {
+            const customerId = row.CUST_VEND || '';
+            const customer = bigCustomers[customerId] || {};
+            const qty = parseFloat(row.QTY || 0);
+            const price = parseFloat(row.PRICE || 0);
+            const gross = roundCurrency(qty * price);
+            const isLawsonBig = lawsonBigConfig && customerMatchesConfig(lawsonBigConfig, customer);
+            const vatIncluded = isLawsonBig && row.DATE < LAWSON_BIG_VAT_EXCLUSIVE_START;
+            return {
+                date: row.DATE,
+                bill_no: parseBillNumber(row.BILL_NO),
+                branch: `P${customerId}`,
+                branch_name: cleanBranchName(customer.SH_NAME || customer.SHIP_NAME || customer.NAME || ''),
+                qty,
+                price,
+                amount: vatIncluded ? roundCurrency(gross / 1.07) : gross,
+                total: vatIncluded ? gross : roundCurrency(gross * 1.07),
+            };
+        })
+        .sort((a, b) => a.date.localeCompare(b.date) || numericKey(a.bill_no) - numericKey(b.bill_no));
+
+    const smallRows = (smallSourceData?.abillno || [])
+        .filter(row => row.REF_DATE >= periodStart && row.REF_DATE <= periodEnd)
+        .map(row => {
+            const customerId = row.CUST_VEND || '';
+            const customer = smallCustomers[customerId] || {};
+            const total = roundCurrency(parseFloat(row.BAL_AMT || 0) + parseFloat(row.VAT_AMT || 0));
+            return {
+                date: row.REF_DATE,
+                bill_no: parseBillNumber(row.NO),
+                branch: `P${customerId}`,
+                branch_name: cleanBranchName(customer.SH_NAME || customer.SHIP_NAME || customer.NAME || ''),
+                qty: Math.round(total / SMALL_PRICE),
+                price: SMALL_PRICE,
+                amount: roundCurrency(total / 1.07),
+                total,
+            };
+        })
+        .filter(row => row.total > 0)
+        .sort((a, b) => a.date.localeCompare(b.date) || numericKey(a.bill_no) - numericKey(b.bill_no));
+
+    const wb = new ExcelJS.Workbook();
+    wb.creator = 'Billing Web App';
+    wb.created = new Date();
+    writeCheckReportSheet(wb.addWorksheet('หลอดใหญ่'), `รายงานตรวจสอบบิลหลอดใหญ่ (${checkReportDate(periodStart)} - ${checkReportDate(periodEnd)})`, bigRows);
+    writeCheckReportSheet(wb.addWorksheet('หลอดเล็ก'), `รายงานตรวจสอบบิลหลอดเล็ก (${checkReportDate(periodStart)} - ${checkReportDate(periodEnd)})`, smallRows);
+
+    const buffer = await wb.xlsx.writeBuffer();
+    return new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+}
