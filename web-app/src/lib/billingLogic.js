@@ -562,14 +562,15 @@ export function writeLawsonBigSheet(ws, config, rows, billDateText) {
         row.getCell(5).value = record.branch_name;
         row.getCell(6).value = record.qty;
         row.getCell(7).value = record.price;
+        const gross = record.qty * record.price;
         if (record.price_includes_vat) {
-            row.getCell(8).value = { formula: `ROUND(F${dataStart + i}*G${dataStart + i}/1.07,2)`, result: record.amount };
-            row.getCell(9).value = { formula: `ROUND(J${dataStart + i}-H${dataStart + i},2)`, result: record.vat };
-            row.getCell(10).value = { formula: `ROUND(F${dataStart + i}*G${dataStart + i},2)`, result: record.total };
+            row.getCell(8).value = { formula: `F${dataStart + i}*G${dataStart + i}*100/107`, result: gross * 100 / 107 };
+            row.getCell(9).value = { formula: `H${dataStart + i}*7%`, result: gross * 7 / 107 };
+            row.getCell(10).value = { formula: `F${dataStart + i}*G${dataStart + i}`, result: gross };
         } else {
-            row.getCell(8).value = { formula: `ROUND(F${dataStart + i}*G${dataStart + i},2)`, result: record.amount };
-            row.getCell(9).value = { formula: `ROUND(H${dataStart + i}*0.07,2)`, result: record.vat };
-            row.getCell(10).value = { formula: `ROUND(H${dataStart + i}+I${dataStart + i},2)`, result: record.total };
+            row.getCell(8).value = { formula: `F${dataStart + i}*G${dataStart + i}`, result: gross };
+            row.getCell(9).value = { formula: `H${dataStart + i}*7%`, result: gross * 0.07 };
+            row.getCell(10).value = { formula: `H${dataStart + i}+I${dataStart + i}`, result: gross * 1.07 };
         }
 
         for (let col = 1; col <= 10; col++) {
@@ -585,7 +586,10 @@ export function writeLawsonBigSheet(ws, config, rows, billDateText) {
     }
 
     const totalRow = dataStart + rows.length;
-    const totalGrand = rows.reduce((sum, r) => sum + r.total, 0);
+    const totalGrand = rows.reduce((sum, r) => {
+        const gross = r.qty * r.price;
+        return sum + (r.price_includes_vat ? gross : gross * 1.07);
+    }, 0);
 
     ws.mergeCells(totalRow, 1, totalRow, 2);
     ws.getCell(totalRow, 1).value = "รวมทั้งหมด";
@@ -654,19 +658,19 @@ export function writeNarrowSheet(ws, config, rows, combinedSmall, billDateText) 
         row.getCell(5).value = label;
         row.getCell(6).value = record.qty;
         row.getCell(7).value = record.price;
+        const gross = record.qty * record.price;
         if (config.product_code === "06") {
-            const gross = record.qty * record.price;
             row.getCell(8).value = { formula: `F${dataStart + i}*G${dataStart + i}*100/107`, result: gross * 100 / 107 };
             row.getCell(9).value = { formula: `H${dataStart + i}*7%`, result: gross * 7 / 107 };
             row.getCell(10).value = { formula: `F${dataStart + i}*G${dataStart + i}`, result: gross };
         } else if (record.price_includes_vat) {
-            row.getCell(8).value = { formula: `ROUND(F${dataStart + i}*G${dataStart + i}/1.07,2)`, result: record.amount };
-            row.getCell(9).value = { formula: `ROUND(J${dataStart + i}-H${dataStart + i},2)`, result: record.vat };
-            row.getCell(10).value = { formula: `ROUND(F${dataStart + i}*G${dataStart + i},2)`, result: record.total };
+            row.getCell(8).value = { formula: `F${dataStart + i}*G${dataStart + i}*100/107`, result: gross * 100 / 107 };
+            row.getCell(9).value = { formula: `H${dataStart + i}*7%`, result: gross * 7 / 107 };
+            row.getCell(10).value = { formula: `F${dataStart + i}*G${dataStart + i}`, result: gross };
         } else {
-            row.getCell(8).value = { formula: `ROUND(F${dataStart + i}*G${dataStart + i},2)`, result: record.amount };
-            row.getCell(9).value = { formula: `ROUND(H${dataStart + i}*0.07,2)`, result: record.vat };
-            row.getCell(10).value = { formula: `ROUND(H${dataStart + i}+I${dataStart + i},2)`, result: record.total };
+            row.getCell(8).value = { formula: `F${dataStart + i}*G${dataStart + i}`, result: gross };
+            row.getCell(9).value = { formula: `H${dataStart + i}*7%`, result: gross * 0.07 };
+            row.getCell(10).value = { formula: `H${dataStart + i}+I${dataStart + i}`, result: gross * 1.07 };
         }
 
         for (let col = 1; col <= 10; col++) {
@@ -682,7 +686,10 @@ export function writeNarrowSheet(ws, config, rows, combinedSmall, billDateText) 
     }
 
     const totalRow = dataStart + rows.length;
-    const totalGrand = rows.reduce((sum, r) => sum + r.total, 0);
+    const totalGrand = rows.reduce((sum, r) => {
+        const gross = r.qty * r.price;
+        return sum + (config.product_code === "06" || r.price_includes_vat ? gross : gross * 1.07);
+    }, 0);
 
     ws.getCell(totalRow, 2).value = "รวม";
     ws.getCell(totalRow, 3).value = thaiBahtText(totalGrand);
