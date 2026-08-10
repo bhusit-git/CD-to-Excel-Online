@@ -614,13 +614,13 @@ def write_lawson_big_sheet(ws, config: dict, rows: list[dict]) -> None:
     data_start = 12
     for row_idx, record in enumerate(rows, start=data_start):
         if record.get("price_includes_vat", True):
-            amount_formula = f"=ROUND(F{row_idx}*G{row_idx}/1.07,2)"
-            vat_formula = f"=ROUND(J{row_idx}-H{row_idx},2)"
-            total_formula = f"=ROUND(F{row_idx}*G{row_idx},2)"
+            amount_formula = f"=F{row_idx}*G{row_idx}*100/107"
+            vat_formula = f"=H{row_idx}*7%"
+            total_formula = f"=F{row_idx}*G{row_idx}"
         else:
-            amount_formula = f"=ROUND(F{row_idx}*G{row_idx},2)"
-            vat_formula = f"=ROUND(H{row_idx}*0.07,2)"
-            total_formula = f"=ROUND(H{row_idx}+I{row_idx},2)"
+            amount_formula = f"=F{row_idx}*G{row_idx}"
+            vat_formula = f"=H{row_idx}*7%"
+            total_formula = f"=H{row_idx}+I{row_idx}"
         values = [
             record["seq"],
             record["date"],
@@ -653,7 +653,12 @@ def write_lawson_big_sheet(ws, config: dict, rows: list[dict]) -> None:
     total_row = data_start + len(rows)
     total_amount = sum(r["amount"] for r in rows)
     total_vat = sum(r["vat"] for r in rows)
-    total_grand = sum(r["total"] for r in rows)
+    total_grand = sum(
+        r["qty"] * r["price"]
+        if r.get("price_includes_vat", True)
+        else r["qty"] * r["price"] * 1.07
+        for r in rows
+    )
     ws.merge_cells(start_row=total_row, start_column=1, end_row=total_row, end_column=2)
     ws[f"A{total_row}"] = "รวมทั้งหมด"
     ws.merge_cells(start_row=total_row, start_column=3, end_row=total_row, end_column=7)
@@ -694,14 +699,18 @@ def write_narrow_sheet(ws, config: dict, rows: list[dict], combined_small: bool)
     data_start = 11
     for row_idx, record in enumerate(rows, start=data_start):
         label = record["branch_name"] if combined_small or config["kind"] == "lawson_small_single" else "หลอดใหญ่"
-        if record.get("price_includes_vat", True):
-            amount_formula = f"=ROUND(F{row_idx}*G{row_idx}/1.07,2)"
-            vat_formula = f"=ROUND(J{row_idx}-H{row_idx},2)"
-            total_formula = f"=ROUND(F{row_idx}*G{row_idx},2)"
+        if config["product_code"] == "06":
+            amount_formula = f"=F{row_idx}*G{row_idx}*100/107"
+            vat_formula = f"=H{row_idx}*7%"
+            total_formula = f"=F{row_idx}*G{row_idx}"
+        elif record.get("price_includes_vat", True):
+            amount_formula = f"=F{row_idx}*G{row_idx}*100/107"
+            vat_formula = f"=H{row_idx}*7%"
+            total_formula = f"=F{row_idx}*G{row_idx}"
         else:
-            amount_formula = f"=ROUND(F{row_idx}*G{row_idx},2)"
-            vat_formula = f"=ROUND(H{row_idx}*0.07,2)"
-            total_formula = f"=ROUND(H{row_idx}+I{row_idx},2)"
+            amount_formula = f"=F{row_idx}*G{row_idx}"
+            vat_formula = f"=H{row_idx}*7%"
+            total_formula = f"=H{row_idx}+I{row_idx}"
         values = [
             record["seq"],
             record["date"],
@@ -734,7 +743,12 @@ def write_narrow_sheet(ws, config: dict, rows: list[dict], combined_small: bool)
     total_row = data_start + len(rows)
     total_amount = sum(r["amount"] for r in rows)
     total_vat = sum(r["vat"] for r in rows)
-    total_grand = sum(r["total"] for r in rows)
+    total_grand = sum(
+        r["qty"] * r["price"]
+        if config["product_code"] == "06" or r.get("price_includes_vat", True)
+        else r["qty"] * r["price"] * 1.07
+        for r in rows
+    )
     ws[f"B{total_row}"] = "รวม"
     ws[f"C{total_row}"] = thai_baht_text(total_grand)
     ws[f"F{total_row}"] = f"=SUM(F{data_start}:F{total_row - 1})"
