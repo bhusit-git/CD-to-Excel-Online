@@ -654,7 +654,12 @@ export function writeNarrowSheet(ws, config, rows, combinedSmall, billDateText) 
         row.getCell(5).value = label;
         row.getCell(6).value = record.qty;
         row.getCell(7).value = record.price;
-        if (record.price_includes_vat) {
+        if (config.product_code === "06") {
+            const gross = record.qty * record.price;
+            row.getCell(8).value = { formula: `F${dataStart + i}*G${dataStart + i}*100/107`, result: gross * 100 / 107 };
+            row.getCell(9).value = { formula: `H${dataStart + i}*7%`, result: gross * 7 / 107 };
+            row.getCell(10).value = { formula: `F${dataStart + i}*G${dataStart + i}`, result: gross };
+        } else if (record.price_includes_vat) {
             row.getCell(8).value = { formula: `ROUND(F${dataStart + i}*G${dataStart + i}/1.07,2)`, result: record.amount };
             row.getCell(9).value = { formula: `ROUND(J${dataStart + i}-H${dataStart + i},2)`, result: record.vat };
             row.getCell(10).value = { formula: `ROUND(F${dataStart + i}*G${dataStart + i},2)`, result: record.total };

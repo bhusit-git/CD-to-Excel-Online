@@ -694,7 +694,11 @@ def write_narrow_sheet(ws, config: dict, rows: list[dict], combined_small: bool)
     data_start = 11
     for row_idx, record in enumerate(rows, start=data_start):
         label = record["branch_name"] if combined_small or config["kind"] == "lawson_small_single" else "หลอดใหญ่"
-        if record.get("price_includes_vat", True):
+        if config["product_code"] == "06":
+            amount_formula = f"=F{row_idx}*G{row_idx}*100/107"
+            vat_formula = f"=H{row_idx}*7%"
+            total_formula = f"=F{row_idx}*G{row_idx}"
+        elif record.get("price_includes_vat", True):
             amount_formula = f"=ROUND(F{row_idx}*G{row_idx}/1.07,2)"
             vat_formula = f"=ROUND(J{row_idx}-H{row_idx},2)"
             total_formula = f"=ROUND(F{row_idx}*G{row_idx},2)"
