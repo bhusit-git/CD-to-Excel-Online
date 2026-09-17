@@ -123,7 +123,7 @@ const ExcelUploader = ({ selectedFile, onFileSelected }) => {
     >
       <input
         type="file"
-        accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        accept=".xlsx,.pdf,application/pdf,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         className="hidden"
         ref={fileInputRef}
         onChange={(event) => onFileSelected(event.target.files?.[0] || null)}
@@ -137,8 +137,8 @@ const ExcelUploader = ({ selectedFile, onFileSelected }) => {
       ) : (
         <>
           <FileSpreadsheet className="text-slate-400 mb-2" size={30} />
-          <p className="font-medium text-slate-600">คลิกเพื่อเลือกไฟล์ Excel</p>
-          <p className="text-xs text-slate-400 mt-1">รองรับไฟล์ .xlsx จาก Lawson</p>
+          <p className="font-medium text-slate-600">คลิกเพื่อเลือกไฟล์ Excel หรือ PDF</p>
+          <p className="text-xs text-slate-400 mt-1">รองรับ .xlsx และ PDF ข้อความจาก Lawson (ไม่รองรับไฟล์สแกน)</p>
         </>
       )}
     </div>
@@ -286,11 +286,20 @@ function App() {
 
     try {
       await new Promise(resolve => setTimeout(resolve, 100));
-      const result = await generateLawsonPaymentWorkbook(await lawsonPaymentFile.arrayBuffer());
+      const buffer = await lawsonPaymentFile.arrayBuffer();
+      let result;
+      if (/\.pdf$/i.test(lawsonPaymentFile.name)) {
+        const { generatePdfWorkbook } = await import('./lib/lawsonPaymentPdfBrowser.js');
+        result = await generatePdfWorkbook(buffer);
+      } else if (/\.xlsx$/i.test(lawsonPaymentFile.name)) {
+        result = await generateLawsonPaymentWorkbook(buffer);
+      } else {
+        throw new Error('กรุณาเลือกไฟล์ .xlsx หรือ .pdf จาก Lawson');
+      }
       const url = URL.createObjectURL(result.blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `${lawsonPaymentFile.name.replace(/\.xlsx$/i, '')}_เรียงตามสาขา.xlsx`;
+      a.download = `${lawsonPaymentFile.name.replace(/\.(xlsx|pdf)$/i, '')}_เรียงตามสาขา.xlsx`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -495,7 +504,7 @@ function App() {
 
             <div className="mb-8">
               <h2 className="text-3xl font-bold text-slate-900 mb-2">จัดรายการไฟล์ที่ Lawson แจ้งจ่าย</h2>
-              <p className="text-slate-600">อัปโหลดไฟล์ Excel จาก Lawson เพื่อเรียงรายการตามสาขาและสร้างสรุปยอดให้อัตโนมัติ</p>
+              <p className="text-slate-600">อัปโหลดไฟล์ Excel หรือ PDF จาก Lawson เพื่อเรียงรายการตามสาขาและสร้างสรุปยอดให้อัตโนมัติ</p>
             </div>
 
             <Card className="p-6 md:p-8">

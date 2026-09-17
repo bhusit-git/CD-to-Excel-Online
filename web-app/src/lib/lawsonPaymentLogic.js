@@ -221,6 +221,11 @@ export async function generateLawsonPaymentWorkbook(inputBuffer) {
   await sourceWorkbook.xlsx.load(inputBuffer);
   const { sourceSheetName, rows } = extractLawsonPaymentRows(sourceWorkbook);
 
+  return createLawsonPaymentWorkbook(rows, sourceSheetName);
+}
+
+export async function createLawsonPaymentWorkbook(rows, sourceSheetName) {
+
   const workbook = new ExcelJS.Workbook();
   workbook.creator = 'Lawson Billing Web App';
   workbook.created = new Date();
