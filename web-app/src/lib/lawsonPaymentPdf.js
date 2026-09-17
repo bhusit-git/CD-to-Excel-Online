@@ -69,8 +69,20 @@ export async function generateLawsonPaymentPdfWorkbook(inputBuffer, pdfjs) {
     const pages = [];
     for (let number = 1; number <= document.numPages; number += 1) {
       const page = await document.getPage(number);
-      const text = await page.getTextContent();
-      pages.push(paymentPdfLines(text.items));
+      // Safari supports stream readers but not ReadableStream async iteration,
+      // which PDF.js getTextContent() uses internally.
+      const reader = page.streamTextContent().getReader();
+      const items = [];
+      try {
+        while (true) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          items.push(...value.items);
+        }
+      } finally {
+        reader.releaseLock();
+      }
+      pages.push(paymentPdfLines(items));
       page.cleanup();
     }
     const { rows, sourceSheetName } = extractLawsonPdfRows(pages);

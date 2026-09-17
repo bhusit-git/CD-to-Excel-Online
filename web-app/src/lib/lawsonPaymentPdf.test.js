@@ -1,12 +1,41 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import ExcelJS from 'exceljs';
-import { paymentPdfLines, extractLawsonPdfRows } from './lawsonPaymentPdf.js';
+import { paymentPdfLines, extractLawsonPdfRows, generateLawsonPaymentPdfWorkbook } from './lawsonPaymentPdf.js';
 import { createLawsonPaymentWorkbook } from './lawsonPaymentLogic.js';
 
 const header = 'Item No Invoice No. Date Gross Amount WHT Amount';
 const first = '1 P3581IAP-2607- 01/09/2026 1,432.07';
 const bill = '009195_69070503';
+
+test('reads PDF text using a reader without stream async-iterator support', async () => {
+  let released = false;
+  let destroyed = false;
+  const chunks = [header, first, bill].map((str, index) => ({
+    done: false,
+    value: { items: [{ str, transform: [1, 0, 0, 1, 30, 300 - index * 20] }] },
+  }));
+  const page = {
+    streamTextContent: () => ({
+      getReader: () => ({
+        read: async () => chunks.shift() || { done: true },
+        releaseLock: () => { released = true; },
+      }),
+    }),
+    cleanup() {},
+  };
+  const pdfjs = {
+    getDocument: () => ({
+      promise: Promise.resolve({ numPages: 1, getPage: async () => page }),
+      destroy: async () => { destroyed = true; },
+    }),
+  };
+  const result = await generateLawsonPaymentPdfWorkbook(new ArrayBuffer(0), pdfjs);
+  assert.equal(result.recordCount, 1);
+  assert.equal(result.total, 1432.07);
+  assert.equal(released, true);
+  assert.equal(destroyed, true);
+});
 
 test('reconstructs PDF rows from unsorted text and slightly different baselines', () => {
   const item = (str, x, y) => ({ str, transform: [1, 0, 0, 1, x, y] });
