@@ -7,10 +7,12 @@ import {
   Folder,
   Calendar,
   Loader2,
-  Download
+  Download,
+  FileSpreadsheet
 } from 'lucide-react';
 import { generateBillingWorkbook, generateBillCheckWorkbook } from './lib/billingLogic';
 import { parseDbf } from './lib/dbfParser';
+import { generateLawsonPaymentWorkbook } from './lib/lawsonPaymentLogic';
 import './App.css';
 
 // UI Helper Components
@@ -109,6 +111,38 @@ const FolderUploader = ({ label, description, onFilesSelected, selectedFiles, ic
   );
 };
 
+const ExcelUploader = ({ selectedFile, onFileSelected }) => {
+  const fileInputRef = useRef(null);
+
+  return (
+    <div
+      onClick={() => fileInputRef.current?.click()}
+      className={`border-2 border-dashed rounded-lg p-5 flex flex-col items-center justify-center cursor-pointer transition-colors ${selectedFile ? 'border-green-300 bg-green-50' : 'border-slate-300 hover:border-violet-400 hover:bg-slate-50'}`}
+    >
+      <input
+        type="file"
+        accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        className="hidden"
+        ref={fileInputRef}
+        onChange={(event) => onFileSelected(event.target.files?.[0] || null)}
+      />
+      {selectedFile ? (
+        <>
+          <CheckCircle2 className="text-green-500 mb-2" size={30} />
+          <p className="font-medium text-green-700 break-all text-center">{selectedFile.name}</p>
+          <p className="text-xs text-green-600 mt-1">เลือกไฟล์ Lawson แล้ว</p>
+        </>
+      ) : (
+        <>
+          <FileSpreadsheet className="text-slate-400 mb-2" size={30} />
+          <p className="font-medium text-slate-600">คลิกเพื่อเลือกไฟล์ Excel</p>
+          <p className="text-xs text-slate-400 mt-1">รองรับไฟล์ .xlsx จาก Lawson</p>
+        </>
+      )}
+    </div>
+  );
+};
+
 function App() {
   const logoSrc = `${import.meta.env.BASE_URL}icons/icon-192.png`;
   const [bigSourceFiles, setBigSourceFiles] = useState([]);
@@ -127,6 +161,9 @@ function App() {
   const [billingSuccess, setBillingSuccess] = useState(false);
   const [checkError, setCheckError] = useState(null);
   const [checkSuccess, setCheckSuccess] = useState(false);
+  const [lawsonPaymentFile, setLawsonPaymentFile] = useState(null);
+  const [paymentError, setPaymentError] = useState(null);
+  const [paymentResult, setPaymentResult] = useState(null);
 
   const handleGenerate = async () => {
     setProcessingAction('billing');
@@ -219,6 +256,31 @@ function App() {
     } catch (err) {
       console.error(err);
       setCheckError(err.message || 'เกิดข้อผิดพลาดในการสร้างรายงานตรวจสอบบิล');
+    } finally {
+      setProcessingAction(null);
+    }
+  };
+
+  const handleLawsonPayment = async () => {
+    setProcessingAction('payment');
+    setPaymentError(null);
+    setPaymentResult(null);
+
+    try {
+      await new Promise(resolve => setTimeout(resolve, 100));
+      const result = await generateLawsonPaymentWorkbook(await lawsonPaymentFile.arrayBuffer());
+      const url = URL.createObjectURL(result.blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${lawsonPaymentFile.name.replace(/\.xlsx$/i, '')}_เรียงตามสาขา.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      setPaymentResult(result);
+    } catch (err) {
+      console.error(err);
+      setPaymentError(err.message || 'เกิดข้อผิดพลาดในการจัดรายการบิลที่ Lawson จ่าย');
     } finally {
       setProcessingAction(null);
     }
@@ -381,6 +443,53 @@ function App() {
 
           </div>
         </div>
+
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.6 }}
+          className="mt-6"
+        >
+          <Card className="p-6">
+            <div className="flex items-start gap-3 mb-5">
+              <div className="p-3 bg-violet-50 text-violet-600 rounded-lg">
+                <FileSpreadsheet size={24} />
+              </div>
+              <div>
+                <h3 className="font-semibold text-slate-800">จัดรายการไฟล์ที่ Lawson แจ้งจ่าย</h3>
+                <p className="text-sm text-slate-500">รวมรหัสสาขากับเลขบิลบรรทัดถัดไป เรียงตามสาขา และสร้างสรุปยอดให้อัตโนมัติ</p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-[1fr_auto] gap-4 items-center">
+              <ExcelUploader
+                selectedFile={lawsonPaymentFile}
+                onFileSelected={(file) => {
+                  setLawsonPaymentFile(file);
+                  setPaymentError(null);
+                  setPaymentResult(null);
+                }}
+              />
+              <button
+                onClick={handleLawsonPayment}
+                disabled={!lawsonPaymentFile || processingAction}
+                className={`flex items-center justify-center gap-2 py-3 px-5 rounded-lg font-medium transition-all shadow-sm ${lawsonPaymentFile && !processingAction ? 'bg-violet-600 hover:bg-violet-700 text-white hover:shadow-md' : 'bg-slate-100 text-slate-400 cursor-not-allowed'}`}
+              >
+                {processingAction === 'payment' ? (
+                  <><Loader2 className="animate-spin" size={20} />กำลังจัดรายการ...</>
+                ) : (
+                  <><Download size={20} />ดาวน์โหลดไฟล์ตรวจ</>
+                )}
+              </button>
+            </div>
+
+            <OperationStatus
+              error={paymentError}
+              success={Boolean(paymentResult)}
+              successText={paymentResult ? `จัดรายการสำเร็จ ${paymentResult.recordCount.toLocaleString('th-TH')} บิล จาก ${paymentResult.branchCount.toLocaleString('th-TH')} สาขา` : ''}
+            />
+          </Card>
+        </motion.div>
       </main>
     </div>
   );
